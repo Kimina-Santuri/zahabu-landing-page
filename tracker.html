@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tech tracker · Zahabu Culture Garden</title>
+  <link rel="icon" href="images/favicon.ico">
+  <link rel="stylesheet" href="tracker.css">
+  <script src="tracker.js" defer></script>
+</head>
+<body>
+  <header class="masthead"><a href="index.html" aria-label="Zahabu home"><img src="images/logo.png" alt="Zahabu Culture Garden"></a><span>CREW & OPERATIONS</span></header>
+  <main>
+    <div class="page-heading"><div><p class="eyebrow">ZAHABU CULTURE GARDEN</p><h1>Tech tracker</h1></div><p class="intro">Every date. Every crew.<br>A clear record of who was on duty.</p></div>
+    <div class="workspace">
+      <section class="entry-panel" aria-labelledby="form-title">
+        <div class="section-heading"><h2 id="form-title">Add a work date</h2><span class="section-number">01</span></div>
+        <form id="entry-form">
+          <label for="work-date">Work date</label><input id="work-date" name="date" type="date" required>
+          <label for="lead">Lead tech</label><input id="lead" name="lead" placeholder="Full name" maxlength="100" list="crew-names" required>
+          <fieldset><legend>Support staff</legend><p class="field-help">At least two different people.</p><div id="supports"></div><button type="button" class="text-button" id="add-support">+ Add another support</button></fieldset>
+          <p id="form-message" role="status" aria-live="polite"></p>
+          <div class="form-actions"><button class="primary" type="submit" id="save-button">Save work date</button><button type="button" id="cancel-edit" hidden>Cancel</button></div>
+        </form>
+        <datalist id="crew-names"></datalist>
+      </section>
+      <section class="records-panel" aria-labelledby="records-title">
+        <div class="section-heading"><h2 id="records-title">Work history</h2><span class="count" id="record-count">0 dates</span></div>
+        <div id="records"></div>
+      </section>
+    </div>
+    <footer id="storage-note"></footer>
+  </main>
+</body>
+</html>
