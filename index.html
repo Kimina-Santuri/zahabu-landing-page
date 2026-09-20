@@ -282,22 +282,6 @@
 
         
 
-        #topography {
-
-            position: fixed;
-
-            inset:0;
-
-            width:100%;
-
-            height:100%;
-
-            z-index:0;
-
-            pointer-events:none;
-
-        }
-
         .bg-photo,
         .bg-overlay{
 
@@ -322,9 +306,9 @@
             background:
                 linear-gradient(
                     to bottom,
-                    rgba(255,255,255,0.55) 0%,
-                    rgba(255,255,255,0.72) 40%,
-                    rgba(255,255,255,0.9) 100%
+                    rgba(255,255,255,0.22) 0%,
+                    rgba(255,255,255,0.4) 40%,
+                    rgba(255,255,255,0.6) 100%
                 );
 
         }
@@ -339,12 +323,6 @@
             overflow-x:hidden;
 
             background:#fff;
-
-        }
-
-        canvas{
-
-            display:block;
 
         }
 
@@ -369,8 +347,6 @@
 
     <div class="bg-photo"></div>
     <div class="bg-overlay"></div>
-
-    <canvas id="topography"></canvas>
 
     <header class="hero">
 
@@ -504,127 +480,5 @@
             if (e.key === "Escape") closeLightbox();
         });
     </script>
-
-    <script>
-        const canvas = document.getElementById("topography");
-        const ctx = canvas.getContext("2d");
-
-        let w, h;
-
-        function resize(){
-
-            w = canvas.width = innerWidth;
-            h = canvas.height = innerHeight;
-
-        }
-
-        addEventListener("resize", resize);
-        resize();
-
-        const ratios = [
-
-            [2,1],
-            [3,2],
-            [4,3],
-            [5,4],
-            [5,3],
-            [7,5],
-            [8,5]
-
-        ];
-
-        let ratio = 0;
-
-        let progress = 0;
-
-        let fade = 0;
-
-        let phase = 0;
-
-        function drawCurve(a,b,amount,alpha){
-
-            ctx.save();
-
-            ctx.translate(w/2,h/2);
-
-            ctx.beginPath();
-
-            const scale = Math.min(w,h)*0.30;
-
-            const max = Math.floor(amount*3000);
-
-            for(let i=0;i<=max;i++){
-
-                const t=(i/3000)*Math.PI*2;
-
-                const x=Math.sin(a*t+phase)*scale;
-                const y=Math.sin(b*t)*scale;
-
-                if(i===0){
-
-                    ctx.moveTo(x,y);
-
-                }else{
-
-                    ctx.lineTo(x,y);
-
-                }
-
-            }
-
-            ctx.strokeStyle=`rgba(0,0,0,${alpha})`;
-
-            ctx.lineWidth=.8;
-
-            ctx.stroke();
-
-            ctx.restore();
-
-        }
-
-        function animate(){
-
-            ctx.clearRect(0,0,w,h);
-
-            const current = ratios[ratio];
-
-            drawCurve(
-
-                current[0],
-                current[1],
-
-                progress,
-
-                0.08*(1-fade)
-
-            );
-
-            progress += .002;
-
-            phase += .0003;
-
-            if(progress>=1){
-
-                fade += .004;
-
-            }
-
-            if(fade>=1){
-
-                fade = 0;
-
-                progress = 0;
-
-                ratio = (ratio+1)%ratios.length;
-
-            }
-
-            requestAnimationFrame(animate);
-
-        }
-
-        animate();
-    </script>
-
     </body>
 </html>
