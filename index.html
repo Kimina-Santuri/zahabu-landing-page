@@ -40,51 +40,40 @@
             background:#ffffff;
             color:#222;
 
-            font-size: 12px;
+            font-size: 16px;
         }
 
         /* ---------- HERO ---------- */
 
         .hero{
 
-            height:40vh;
-
-            min-height:300px;
-
-            background:
-                linear-gradient(
-                    to bottom,
-                    rgba(255,255,255,1) 0%,
-                    rgba(255,255,255,0.95) 45%,
-                    rgba(255,255,255,0.75) 100%
-                );
-
+            min-height:40vh;
 
             display:flex;
 
             justify-content:center;
 
-            align-items:center;
+            align-items:flex-start;
 
             text-align:left;
 
             color:#111;
 
-            padding:30px;
+            padding:64px 48px;
 
         }
 
         .hero-content{
 
-            max-width:800px;
+            width:100%;
+
+            max-width:min(1160px, 92vw);
 
         }
 
         .logo{
 
-            width:100px;
-
-            margin-top: 200px;
+            width:120px;
 
             text-align:left;
 
@@ -95,22 +84,186 @@
 
         .about{
             text-align: left;
-            max-width:700px;
+            max-width:640px;
             margin-right:auto;
             margin-left:0;
 
             padding-left:40px;
+
+            margin-top:44px;
         }
 
         .about p{
-            line-height:1.4;
+            line-height:1.6;
 
-            margin-bottom:25px;
+            margin-bottom:26px;
 
         }
 
+        /* ---------- CONTACT ---------- */
+
+        .contact{
+            padding-left:40px;
+            margin-top:76px;
+        }
+
         .contact p{
-            line-height:0.5;
+            line-height:1.7;
+            margin-bottom:4px;
+        }
+
+        /* ---------- MENU SECTIONS ---------- */
+
+        .menu-area{
+            padding-left:40px;
+            margin-top:80px;
+            display:flex;
+            flex-direction:column;
+            gap:64px;
+        }
+
+        .section-label{
+            font-size:14px;
+            font-weight:normal;
+            letter-spacing:.16em;
+            text-transform:uppercase;
+            color:#555;
+            margin-bottom:0;
+        }
+
+        .menu-block{
+            max-width:1080px;
+        }
+
+        .menu-block-head{
+            display:flex;
+            justify-content:space-between;
+            align-items:baseline;
+            margin-bottom:20px;
+        }
+
+        .menu-block-head h3{
+            font-size:20px;
+            font-weight:normal;
+            letter-spacing:.06em;
+            text-transform:uppercase;
+        }
+
+        .menu-download{
+            font-size:12px;
+            letter-spacing:.04em;
+            text-transform:uppercase;
+            color:#666;
+            text-decoration:none;
+            border-bottom:1px solid transparent;
+            white-space:nowrap;
+        }
+
+        .menu-download:hover,
+        .menu-download:focus-visible{
+            border-bottom-color:#666;
+        }
+
+        .menu-row{
+            display:flex;
+            flex-wrap:wrap;
+            gap:clamp(20px, 4vw, 40px);
+        }
+
+        .menu-row .menu-thumb{
+            flex:1 1 260px;
+            max-width:520px;
+        }
+
+        .menu-thumb{
+            display:block;
+            width:100%;
+            border:1px solid rgba(0,0,0,.12);
+            background:#fff;
+            padding:0;
+            cursor:zoom-in;
+            overflow:hidden;
+            box-shadow:0 6px 16px rgba(0,0,0,.08);
+            transition:transform .25s ease, box-shadow .25s ease;
+        }
+
+        .menu-thumb:hover,
+        .menu-thumb:focus-visible{
+            transform:translateY(-4px);
+            box-shadow:0 12px 24px rgba(0,0,0,.15);
+        }
+
+        .menu-thumb img{
+            display:block;
+            width:100%;
+            height:auto;
+        }
+
+        @media (max-width:640px){
+
+            .hero{
+                padding:36px 24px;
+            }
+
+            .about,
+            .menu-area,
+            .contact{
+                padding-left:0;
+            }
+
+            .menu-area{
+                gap:48px;
+            }
+
+            .menu-row{
+                flex-direction:column;
+            }
+        }
+
+        /* ---------- LIGHTBOX ---------- */
+
+        .lightbox{
+            position:fixed;
+            inset:0;
+            z-index:50;
+            background:rgba(10,10,10,.9);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:50px 24px;
+            opacity:0;
+            pointer-events:none;
+            transition:opacity .2s ease;
+        }
+
+        .lightbox.is-open{
+            opacity:1;
+            pointer-events:auto;
+        }
+
+        .lightbox img{
+            max-width:100%;
+            max-height:100%;
+            box-shadow:0 20px 60px rgba(0,0,0,.6);
+        }
+
+        .lightbox-close{
+            position:absolute;
+            top:22px;
+            right:26px;
+            width:36px;
+            height:36px;
+            border:1px solid rgba(255,255,255,.5);
+            background:none;
+            color:#fff;
+            font-size:18px;
+            font-family:"Futura", sans-serif;
+            cursor:pointer;
+            line-height:1;
+        }
+
+        .lightbox-close:hover{
+            background:rgba(255,255,255,.12);
         }
 
         /* ---------- FOOTER ---------- */
@@ -123,7 +276,7 @@
 
             color:#777;
 
-            margin-top:120px;
+            margin-top:100px;
 
         }
 
@@ -142,6 +295,37 @@
             z-index:0;
 
             pointer-events:none;
+
+        }
+
+        .bg-photo,
+        .bg-overlay{
+
+            position:fixed;
+
+            inset:0;
+
+            z-index:-1;
+
+        }
+
+        .bg-photo{
+
+            background:url("assets/garden-background.jpg") center/cover no-repeat;
+
+            z-index:-2;
+
+        }
+
+        .bg-overlay{
+
+            background:
+                linear-gradient(
+                    to bottom,
+                    rgba(255,255,255,0.55) 0%,
+                    rgba(255,255,255,0.72) 40%,
+                    rgba(255,255,255,0.9) 100%
+                );
 
         }
 
@@ -183,6 +367,9 @@
 
 <body>
 
+    <div class="bg-photo"></div>
+    <div class="bg-overlay"></div>
+
     <canvas id="topography"></canvas>
 
     <header class="hero">
@@ -203,8 +390,61 @@
             </p>
 
             <p>
-            At its core, Zahabu exists as a community-driven cultural and creative playground where music, atmosphere, and people evolve together. It is a place that prioritizes individual expression as wll as intercultural and intergenerational dialogue through the arts. 
+            At its core, Zahabu exists as a community-driven cultural and creative playground where music, atmosphere, and people evolve together. It is a place that prioritizes individual expression as wll as intercultural and intergenerational dialogue through the arts.
             </p>
+
+            </section>
+
+            <section class="menu-area">
+
+                <h2 class="section-label">Menus</h2>
+
+                <div class="menu-block">
+                    <div class="menu-block-head">
+                        <h3>Food</h3>
+                        <a class="menu-download" href="assets/menu-food.pdf" target="_blank" rel="noopener">PDF ↓</a>
+                    </div>
+                    <div class="menu-row">
+                        <button type="button" class="menu-thumb" data-full="assets/menu-pages/food-1.jpg">
+                            <img src="assets/menu-pages/food-1.jpg" loading="lazy" alt="Zahabu food menu, page 1">
+                        </button>
+                    </div>
+                </div>
+
+                <div class="menu-block">
+                    <div class="menu-block-head">
+                        <h3>Drinks</h3>
+                        <a class="menu-download" href="assets/menu-drinks.pdf" target="_blank" rel="noopener">PDF ↓</a>
+                    </div>
+                    <div class="menu-row">
+                        <button type="button" class="menu-thumb" data-full="assets/menu-pages/drinks-1.jpg">
+                            <img src="assets/menu-pages/drinks-1.jpg" loading="lazy" alt="Zahabu drinks menu, page 1">
+                        </button>
+                        <button type="button" class="menu-thumb" data-full="assets/menu-pages/drinks-2.jpg">
+                            <img src="assets/menu-pages/drinks-2.jpg" loading="lazy" alt="Zahabu drinks menu, page 2">
+                        </button>
+                    </div>
+                </div>
+
+                <div class="menu-block">
+                    <div class="menu-block-head">
+                        <h3>Brunch</h3>
+                        <a class="menu-download" href="assets/menu-brunch.pdf" target="_blank" rel="noopener">PDF ↓</a>
+                    </div>
+                    <div class="menu-row">
+                        <button type="button" class="menu-thumb" data-full="assets/menu-pages/brunch-1.jpg">
+                            <img src="assets/menu-pages/brunch-1.jpg" loading="lazy" alt="Zahabu brunch menu, page 1">
+                        </button>
+                        <button type="button" class="menu-thumb" data-full="assets/menu-pages/brunch-2.jpg">
+                            <img src="assets/menu-pages/brunch-2.jpg" loading="lazy" alt="Zahabu brunch menu, page 2">
+                        </button>
+                        <button type="button" class="menu-thumb" data-full="assets/menu-pages/brunch-3.jpg">
+                            <img src="assets/menu-pages/brunch-3.jpg" loading="lazy" alt="Zahabu brunch menu, page 3">
+                        </button>
+                    </div>
+                </div>
+
+            </section>
 
             <div class="contact">
                 <p>
@@ -215,11 +455,6 @@
                 </a>
                 </p>
             </div>
-
-            </p>
-
-            </section>
-
 
         </div>
 
@@ -233,7 +468,43 @@
             © 2026 Zahabu Culture Garden
     </footer>
 
-  
+    <div class="lightbox" id="lightbox">
+        <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close">✕</button>
+        <img id="lightboxImage" src="" alt="Menu page">
+    </div>
+
+    <script>
+        const lightbox = document.getElementById("lightbox");
+        const lightboxImage = document.getElementById("lightboxImage");
+
+        function openLightbox(src, alt){
+            lightboxImage.src = src;
+            lightboxImage.alt = alt;
+            lightbox.classList.add("is-open");
+        }
+
+        function closeLightbox(){
+            lightbox.classList.remove("is-open");
+            lightboxImage.src = "";
+        }
+
+        document.querySelectorAll(".menu-thumb").forEach(btn => {
+            btn.addEventListener("click", () => {
+                openLightbox(btn.dataset.full, btn.querySelector("img").alt);
+            });
+        });
+
+        document.getElementById("lightboxClose").addEventListener("click", closeLightbox);
+
+        lightbox.addEventListener("click", e => {
+            if (e.target === lightbox) closeLightbox();
+        });
+
+        addEventListener("keydown", e => {
+            if (e.key === "Escape") closeLightbox();
+        });
+    </script>
+
     <script>
         const canvas = document.getElementById("topography");
         const ctx = canvas.getContext("2d");

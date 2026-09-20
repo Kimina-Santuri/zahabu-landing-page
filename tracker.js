@@ -55,6 +55,11 @@ function resetForm() {
   document.querySelector('#work-date').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   supportFields.replaceChildren();
   addSupport(); addSupport();
+  document.querySelector('#event-name').value = '';
+  document.querySelector('#work-type').value = 'Event';
+  document.querySelector('#status').value = 'Completed';
+  document.querySelector('#notes').value = '';
+  document.querySelector('#approved-by').value = '';
   editingId = null;
   document.querySelector('#form-title').textContent = 'Add a work date';
   document.querySelector('#save-button').textContent = 'Save work date';
@@ -65,10 +70,33 @@ function displayDate(date) {
   return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short', year:'numeric'});
 }
 
+function csvCell(value) {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
+}
+
+function exportCsv() {
+  if (!records.length || busy) return;
+  const supportCount = Math.max(...records.map(record => record.supports.length), 0);
+  const header = ['Work date', 'Event / booking name', 'Work type', 'Status', 'Lead tech', ...Array.from({length:supportCount}, (_, i) => `Support ${i + 1}`), 'Notes', 'Approved by', 'Created at', 'Updated at'];
+  const rows = [...records].sort((a, b) => a.date.localeCompare(b.date)).map(record => [record.date, record.eventName || '', record.workType || 'Event', record.status || 'Completed', record.lead, ...record.supports, record.notes || '', record.approvedBy || '', record.createdAt || '', record.updatedAt || '']);
+  const csv = [header, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  const blob = new Blob([`\ufeff${csv}`], {type: 'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `zahabu-tech-tracker-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function render() {
   const container = document.querySelector('#records');
   container.replaceChildren();
   document.querySelector('#record-count').textContent = `${records.length} ${records.length === 1 ? 'date' : 'dates'}`;
+  const exportButton = document.querySelector('#export-csv');
+  exportButton.disabled = !records.length || busy;
   if (!records.length) {
     const empty = document.createElement('div');
     empty.className = 'empty';
@@ -86,7 +114,12 @@ function render() {
     edit.onclick = () => {
       editingId = record.id;
       document.querySelector('#work-date').value = record.date;
+      document.querySelector('#event-name').value = record.eventName || '';
+      document.querySelector('#work-type').value = record.workType || 'Event';
+      document.querySelector('#status').value = record.status || 'Completed';
       document.querySelector('#lead').value = record.lead;
+      document.querySelector('#notes').value = record.notes || '';
+      document.querySelector('#approved-by').value = record.approvedBy || '';
       supportFields.replaceChildren(); record.supports.forEach(addSupport);
       document.querySelector('#form-title').textContent = 'Edit work date';
       document.querySelector('#save-button').textContent = 'Save changes';
@@ -107,6 +140,10 @@ function render() {
       finally { setBusy(false); }
     };
     actions.append(edit,remove); top.append(date,actions);
+    const details = document.createElement('div'); details.className = 'record-details';
+    const event = document.createElement('strong'); event.textContent = record.eventName || 'Unnamed booking';
+    const typeStatus = document.createElement('span'); typeStatus.textContent = `${record.workType || 'Event'} · ${record.status || 'Completed'}`;
+    details.append(event, typeStatus);
     const list = document.createElement('dl'); list.className = 'assignments';
     for (const [title, names] of [['Lead tech', [record.lead]], ['Support staff', record.supports]]) {
       const group = document.createElement('div');
@@ -115,7 +152,16 @@ function render() {
       names.forEach(name => { const span = document.createElement('span'); span.textContent = name; if (title === 'Support staff') span.className = 'support-name'; detail.append(span); });
       group.append(term, detail); list.append(group);
     }
-    article.append(top,list); container.append(article);
+    article.append(top,details,list);
+    if (record.notes || record.approvedBy || record.createdAt || record.updatedAt) {
+      const footer = document.createElement('div'); footer.className = 'record-footer';
+      if (record.notes) { const note = document.createElement('span'); note.textContent = record.notes; footer.append(note); }
+      if (record.approvedBy) { const approved = document.createElement('span'); approved.textContent = `Approved by ${record.approvedBy}`; footer.append(approved); }
+      if (record.createdAt) { const stamp = document.createElement('small'); stamp.textContent = `Created ${new Date(record.createdAt).toLocaleString()}`; footer.append(stamp); }
+      if (record.updatedAt && record.updatedAt !== record.createdAt) { const stamp = document.createElement('small'); stamp.textContent = `Updated ${new Date(record.updatedAt).toLocaleString()}`; footer.append(stamp); }
+      article.append(footer);
+    }
+    container.append(article);
   }
   const names = [...new Set(records.flatMap(record => [record.lead,...record.supports]))].sort();
   document.querySelector('#crew-names').replaceChildren(...names.map(name => { const option = document.createElement('option'); option.value = name; return option; }));
@@ -133,8 +179,13 @@ form.addEventListener('submit', async event => {
   const record = {
     id: editingId || crypto.randomUUID(),
     date: document.querySelector('#work-date').value,
+    eventName: document.querySelector('#event-name').value.trim(),
+    workType: document.querySelector('#work-type').value,
+    status: document.querySelector('#status').value,
     lead: document.querySelector('#lead').value.trim(),
-    supports: [...supportFields.querySelectorAll('input')].map(input => input.value.trim())
+    supports: [...supportFields.querySelectorAll('input')].map(input => input.value.trim()),
+    notes: document.querySelector('#notes').value.trim(),
+    approvedBy: document.querySelector('#approved-by').value.trim()
   };
   const names = [record.lead, ...record.supports];
   if (!record.lead || record.supports.length < 2 || record.supports.some(name => !name)) return say('Enter a lead tech and at least two support staff.', true);
@@ -151,6 +202,7 @@ form.addEventListener('submit', async event => {
 
 document.querySelector('#add-support').onclick = () => addSupport().focus();
 document.querySelector('#cancel-edit').onclick = () => { resetForm(); say(''); };
+document.querySelector('#export-csv').onclick = exportCsv;
 
 async function api(path = '', options = {}) {
   const response = await fetch(`/api/work-dates${path}`, { ...options, headers: {'Content-Type':'application/json'} });
@@ -164,7 +216,8 @@ const storage = {
   remove: id => api(`?id=${encodeURIComponent(id)}`, {method:'DELETE'})
 };
 resetForm();
-document.querySelector('#storage-note').textContent = 'Work dates are saved online. One crew entry per date.';
+const isLocalPreview = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+document.querySelector('#storage-note').textContent = `${isLocalPreview ? 'Work dates are saved locally for this preview' : 'Work dates are saved online'}. One crew entry per date.`;
 async function loadRecords() {
   setBusy(true);
   document.querySelector('#records').textContent = 'Loading work history…';
