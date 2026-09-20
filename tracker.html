@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tech tracker · Zahabu Culture Garden</title>
+  <link rel="icon" href="images/favicon.ico">
+  <link rel="stylesheet" href="tracker.css">
+  <script src="tracker.js" defer></script>
+</head>
+<body>
+  <header class="masthead"><a href="index.html" aria-label="Zahabu home"><img src="images/logo.png" alt="Zahabu Culture Garden"></a><span>CREW & OPERATIONS</span></header>
+  <main>
+    <div class="page-heading"><div><p class="eyebrow">ZAHABU CULTURE GARDEN</p><h1>Tech tracker</h1></div><p class="intro">Lead technicians and support crew.<br>One record for every work date.</p></div>
+    <div class="workspace">
+      <section class="entry-panel" aria-labelledby="form-title">
+        <div class="section-heading"><h2 id="form-title">Add a work date</h2><span class="section-number">01</span></div>
+        <form id="entry-form">
+          <label for="work-date">Work date</label><input id="work-date" name="date" type="date" required>
+          <label for="event-name">Event / booking name</label><input id="event-name" name="eventName" placeholder="Name of event or booking" maxlength="160">
+          <div class="field-grid"><div><label for="work-type">Work type</label><select id="work-type" name="workType"><option>Setup</option><option>Soundcheck</option><option selected>Event</option><option>Breakdown</option><option>Maintenance</option><option>Rehearsal</option><option>Other</option></select></div><div><label for="status">Status</label><select id="status" name="status"><option>Planned</option><option selected>Completed</option><option>Cancelled</option><option>Pending</option></select></div></div>
+          <label for="lead">Lead tech</label><input id="lead" name="lead" placeholder="Full name" maxlength="100" list="crew-names" required>
+          <fieldset><legend>Support staff</legend><p class="field-help">At least two different people.</p><div id="supports"></div><button type="button" class="text-button" id="add-support">+ Add another support</button></fieldset>
+          <label for="notes">Notes</label><textarea id="notes" name="notes" rows="4" maxlength="2000" placeholder="Handover details, issues, or follow-up"></textarea>
+          <label for="approved-by">Approved by</label><input id="approved-by" name="approvedBy" placeholder="Name of approver" maxlength="100" list="crew-names">
+          <p id="form-message" role="status" aria-live="polite"></p>
+          <div class="form-actions"><button class="primary" type="submit" id="save-button">Save work date</button><button type="button" id="cancel-edit" hidden>Cancel</button></div>
+        </form>
+        <datalist id="crew-names"></datalist>
+      </section>
+      <section class="records-panel" aria-labelledby="records-title">
+        <div class="section-heading"><h2 id="records-title">Work history</h2><div class="section-tools"><span class="count" id="record-count">0 dates</span><button type="button" id="export-csv" class="export-button" disabled>Download CSV</button></div></div>
+        <div id="records"></div>
+      </section>
+    </div>
+    <footer><span class="footer-brand">Zahabu / Nairobi</span><span id="storage-note"></span></footer>
+  </main>
+</body>
+</html>

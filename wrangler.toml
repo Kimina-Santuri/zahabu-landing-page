@@ -1,0 +1,8 @@
+name = "zahabu-tech-tracker"
+main = "dist/server/index.js"
+compatibility_date = "2026-09-16"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zahabu-tracker"
+database_id = "c1922d96-3031-4de5-97e9-dfe2bc043286"

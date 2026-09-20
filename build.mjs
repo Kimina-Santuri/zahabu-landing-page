@@ -1,0 +1,11 @@
+import { readFile, mkdir, writeFile, cp } from 'node:fs/promises';
+const types = {html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',ttf:'font/ttf',png:'image/png',ico:'image/x-icon',jpg:'image/jpeg',pdf:'application/pdf'};
+const paths = ['index.html','tracker.html','tracker.css','tracker.js','viewer.html','viewer.js','fonts/Futura-Regular.ttf','images/logo.png','images/favicon.ico','assets/garden-background.jpg','assets/menu-food.pdf','assets/menu-drinks.pdf','assets/menu-brunch.pdf','assets/menu-pages/food-1.jpg','assets/menu-pages/drinks-1.jpg','assets/menu-pages/drinks-2.jpg','assets/menu-pages/brunch-1.jpg','assets/menu-pages/brunch-2.jpg','assets/menu-pages/brunch-3.jpg'];
+const assets = {};
+for (const path of paths) assets[`/${path}`] = {data:(await readFile(path)).toString('base64'),type:types[path.split('.').pop()]};
+await mkdir('dist/server',{recursive:true});
+await mkdir('dist/.openai',{recursive:true});
+await writeFile('dist/server/index.js',`const ASSETS = ${JSON.stringify(assets)};\n${await readFile('worker.mjs','utf8')}`);
+await cp('.openai/hosting.json','dist/.openai/hosting.json');
+await cp('drizzle','dist/.openai/drizzle',{recursive:true});
+console.log('Built Zahabu landing page and tech tracker.');
