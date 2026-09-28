@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Photo review · Zahabu</title>
+  <link rel="icon" href="/admin/favicon.ico">
+  <style>
+    @font-face { font-family:Futura; src:url("/admin/Futura-Regular.ttf") format("truetype"); font-display:swap; }
+    :root { --ink:#141814; --muted:#5f6a63; --line:rgba(20,24,20,.16); --paper:#fff; --soft:#f3f5f2; --forest:#2f5d3a; --danger:#a3312b; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:Futura, Arial, sans-serif; color:var(--ink); background:var(--soft); line-height:1.5; }
+    button { font:inherit; cursor:pointer; }
+    [hidden] { display:none !important; }
+    :focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
+
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:20px clamp(16px, 4vw, 40px); background:var(--paper); border-bottom:1px solid var(--line); }
+    header img { width:96px; display:block; }
+    .who { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+
+    main { padding:32px clamp(16px, 4vw, 40px) 64px; max-width:1280px; margin:0 auto; }
+    h1 { font-weight:normal; font-size:clamp(26px, 4vw, 36px); text-transform:uppercase; letter-spacing:.02em; }
+    .intro { color:var(--muted); margin-top:6px; max-width:620px; }
+
+    .tabs { display:inline-flex; gap:4px; margin:28px 0 24px; padding:4px; background:var(--paper); border:1px solid var(--line); border-radius:999px; }
+    .tab { border:0; background:none; padding:9px 18px; border-radius:999px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; }
+    .tab[aria-selected="true"] { background:var(--ink); color:#fff; }
+    .count { opacity:.7; margin-left:4px; }
+
+    .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:18px; }
+    .card { background:var(--paper); border:1px solid var(--line); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+    .card a { position:relative; display:block; background:#e6e9e4; aspect-ratio:4 / 3; }
+    .card img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block; }
+    .meta { padding:12px 14px 4px; font-size:14px; }
+    .meta .credit { font-size:15px; }
+    .meta .credit.none { color:var(--muted); font-style:italic; }
+    .meta time { display:block; font-size:12px; color:var(--muted); }
+    .actions { display:flex; gap:8px; padding:12px 14px 14px; margin-top:auto; }
+    .actions button { flex:1; padding:9px 10px; border-radius:999px; border:1px solid var(--ink); background:var(--paper); font-size:12px; letter-spacing:.1em; text-transform:uppercase; }
+    .actions .approve { background:var(--ink); color:#fff; }
+    .actions .approve:hover { background:var(--forest); border-color:var(--forest); }
+    .actions .delete { border-color:var(--danger); color:var(--danger); }
+    .actions .delete:hover { background:var(--danger); color:#fff; }
+    .actions button:disabled { opacity:.5; cursor:wait; }
+
+    .empty, .message { padding:48px 20px; text-align:center; color:var(--muted); background:var(--paper); border:1px dashed var(--line); border-radius:14px; }
+    .message.error { color:var(--danger); }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="/admin/logo.png" alt="Zahabu">
+    <span class="who" id="who"></span>
+  </header>
+  <main>
+    <h1>Community photos</h1>
+    <p class="intro">Nothing appears on zahabu.co.ke until it's approved here. Delete anything that shouldn't be public; deleted photos are removed from storage permanently.</p>
+
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab" role="tab" data-status="pending" aria-selected="true">Waiting for review<span class="count" id="pendingCount"></span></button>
+      <button type="button" class="tab" role="tab" data-status="approved" aria-selected="false">Published</button>
+    </div>
+
+    <p class="message" id="message" hidden></p>
+    <div class="grid" id="grid"></div>
+    <p class="empty" id="empty" hidden></p>
+  </main>
+  <script src="/admin/admin.js" defer></script>
+</body>
+</html>

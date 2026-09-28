@@ -9,3 +9,8 @@ The tracker records one lead tech and at least two distinct support staff per da
 Run `npm install`, `npm run db:generate`, and `npm run build`. Run `node verify.mjs` to check persistence and validation. Run `node preview.mjs` for a local preview at `http://localhost:5173/tracker.html`. The preview uses a separate SQLite database in `/private/tmp`; it does not change hosted records.
 
 Opening the HTML directly does not provide database access. Deploy the Worker and generated migrations through Sites for online use. The hosting configuration is `.openai/hosting.json`.
+
+## Community photos
+
+Visitors can share photos from the "Moments at Zahabu" section of the landing page. Every photo is held for review and only appears on the site after staff approve it at `https://photos.zahabu.co.ke/admin` (sign-in via Cloudflare Access). Location and camera data is stripped from every photo. The backend is `photos-worker.mjs`, deployed separately with `npx wrangler deploy -c wrangler.photos.toml`; see AGENTS.md for setup.
+

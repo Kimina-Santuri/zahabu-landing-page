@@ -73,6 +73,10 @@
             display:block;
         }
 
+        [hidden]{
+            display:none !important;
+        }
+
         :focus-visible{
             outline:2px solid var(--ink);
             outline-offset:3px;
@@ -461,6 +465,295 @@
             background:var(--ink);
         }
 
+        /* ---------- COMMUNITY ---------- */
+
+        .community{
+            text-align:center;
+        }
+
+        .community-lead{
+            max-width:560px;
+            margin:22px auto 0;
+            font-size:17px;
+            line-height:1.7;
+            color:var(--ink-soft);
+        }
+
+        .community .btn{
+            margin-top:30px;
+            cursor:pointer;
+            font-family:inherit;
+        }
+
+        .community-grid{
+            max-width:1160px;
+            margin:52px auto 0;
+            display:flex;
+            flex-wrap:wrap;
+            justify-content:center;
+            gap:16px;
+        }
+
+        .community-item{
+            position:relative;
+            display:block;
+            flex:0 0 auto;
+            height:clamp(180px, 24vw, 280px);
+            max-width:100%;
+            border:0;
+            padding:0;
+            border-radius:14px;
+            overflow:hidden;
+            background:var(--glass);
+            cursor:zoom-in;
+            box-shadow:0 18px 40px -24px rgba(20,40,20,.55);
+            transition:transform .35s var(--ease);
+        }
+
+        .community-item:hover{
+            transform:translateY(-4px);
+        }
+
+        .community-item img{
+            width:auto;
+            height:100%;
+            max-width:100%;
+            object-fit:cover;
+        }
+
+        .community-item .credit{
+            position:absolute;
+            left:0;
+            right:0;
+            bottom:0;
+            padding:28px 14px 12px;
+            text-align:left;
+            color:#fff;
+            font-size:12px;
+            letter-spacing:.12em;
+            text-transform:uppercase;
+            background:linear-gradient(transparent, rgba(0,0,0,.55));
+            opacity:0;
+            transition:opacity .3s ease;
+        }
+
+        .community-item:hover .credit,
+        .community-item:focus-visible .credit{
+            opacity:1;
+        }
+
+        .community-empty{
+            margin:44px auto 0;
+            max-width:460px;
+            padding:28px;
+            border-radius:var(--radius);
+            border:1px dashed rgba(20,24,20,.25);
+            color:var(--ink-soft);
+        }
+
+        .community-more{
+            margin-top:12px;
+        }
+
+        /* ---------- SHARE DIALOG ---------- */
+
+        .share-dialog{
+            width:min(560px, calc(100vw - 32px));
+            max-height:calc(100vh - 32px);
+            margin:auto;
+            padding:0;
+            border:1px solid var(--glass-border);
+            border-radius:var(--radius);
+            background:rgba(255,255,255,.94);
+            color:var(--ink);
+            box-shadow:0 40px 100px -30px rgba(10,30,10,.55);
+        }
+
+        .share-dialog::backdrop{
+            background:rgba(12,20,14,.55);
+            -webkit-backdrop-filter:blur(6px);
+            backdrop-filter:blur(6px);
+        }
+
+        .share-form{
+            display:flex;
+            flex-direction:column;
+            gap:20px;
+            padding:clamp(22px, 5vw, 36px);
+            text-align:left;
+        }
+
+        .share-head{
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-start;
+            gap:16px;
+        }
+
+        .share-head h3{
+            font-weight:normal;
+            font-size:24px;
+            text-transform:uppercase;
+            line-height:1.1;
+        }
+
+        .share-head p{
+            margin-top:6px;
+            font-size:14px;
+            color:var(--ink-soft);
+            line-height:1.5;
+        }
+
+        .share-close{
+            flex:none;
+            width:38px;
+            height:38px;
+            border-radius:50%;
+            border:1px solid var(--line);
+            background:none;
+            cursor:pointer;
+            font-size:16px;
+        }
+
+        .dropzone{
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            gap:6px;
+            padding:26px 16px;
+            border:1.5px dashed rgba(20,24,20,.3);
+            border-radius:16px;
+            text-align:center;
+            cursor:pointer;
+            transition:border-color .2s ease, background .2s ease;
+        }
+
+        .dropzone:hover,
+        .dropzone.is-dragging,
+        .dropzone:focus-within{
+            border-color:var(--forest);
+            background:rgba(47,93,58,.06);
+        }
+
+        .dropzone strong{
+            font-weight:normal;
+            font-size:15px;
+            letter-spacing:.08em;
+            text-transform:uppercase;
+        }
+
+        .dropzone span{
+            font-size:13px;
+            color:var(--muted);
+        }
+
+        .dropzone input{
+            position:absolute;
+            width:1px;
+            height:1px;
+            opacity:0;
+        }
+
+        .share-previews{
+            display:grid;
+            grid-template-columns:repeat(auto-fill, minmax(84px, 1fr));
+            gap:10px;
+        }
+
+        .share-previews:empty{
+            display:none;
+        }
+
+        .share-preview{
+            position:relative;
+            aspect-ratio:1;
+            border-radius:10px;
+            overflow:hidden;
+            background:#e6ebe6;
+        }
+
+        .share-preview img{
+            width:100%;
+            height:100%;
+            object-fit:cover;
+        }
+
+        .share-preview button{
+            position:absolute;
+            top:4px;
+            right:4px;
+            width:24px;
+            height:24px;
+            border-radius:50%;
+            border:0;
+            background:rgba(0,0,0,.6);
+            color:#fff;
+            font-size:12px;
+            cursor:pointer;
+        }
+
+        .field label{
+            display:block;
+            font-size:11px;
+            letter-spacing:.2em;
+            text-transform:uppercase;
+            color:var(--muted);
+            margin-bottom:8px;
+        }
+
+        .field input{
+            width:100%;
+            padding:13px 16px;
+            border-radius:12px;
+            border:1px solid var(--line);
+            background:#fff;
+            font:inherit;
+            font-size:16px;
+        }
+
+        .consent{
+            display:flex;
+            gap:12px;
+            align-items:flex-start;
+            font-size:14px;
+            line-height:1.5;
+            color:var(--ink-soft);
+            cursor:pointer;
+        }
+
+        .consent input{
+            flex:none;
+            width:18px;
+            height:18px;
+            margin-top:2px;
+            accent-color:var(--forest);
+        }
+
+        .share-status{
+            font-size:14px;
+            min-height:1.4em;
+        }
+
+        .share-status.is-error{
+            color:#a3312b;
+        }
+
+        .share-status.is-success{
+            color:var(--forest);
+        }
+
+        .share-form .btn{
+            align-self:flex-start;
+            cursor:pointer;
+            font-family:inherit;
+        }
+
+        .share-form .btn:disabled{
+            opacity:.5;
+            cursor:wait;
+            transform:none;
+        }
+
         /* ---------- VISIT ---------- */
 
         .visit-card{
@@ -554,9 +847,28 @@
             pointer-events:auto;
         }
 
-        .lightbox img{
+        .lightbox-figure{
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            gap:14px;
             max-width:100%;
             max-height:100%;
+            min-height:0;
+        }
+
+        .lightbox-caption{
+            color:rgba(255,255,255,.85);
+            font-size:13px;
+            letter-spacing:.14em;
+            text-transform:uppercase;
+        }
+
+        .lightbox img{
+            max-width:100%;
+            max-height:calc(100vh - 170px);
+            min-height:0;
             border-radius:6px;
             box-shadow:0 20px 60px rgba(0,0,0,.6);
         }
@@ -671,6 +983,7 @@
         <ul class="nav-links">
             <li><a href="#about">About</a></li>
             <li><a href="#menus">Menus</a></li>
+            <li id="communityNav" hidden><a href="#community">Community</a></li>
             <li><a href="#visit">Visit</a></li>
         </ul>
     </nav>
@@ -754,6 +1067,17 @@
             </div>
         </section>
 
+        <section class="community" id="community" hidden>
+            <span class="eyebrow reveal">From the community</span>
+            <h2 class="section-title reveal">Moments at Zahabu</h2>
+            <p class="community-lead reveal">Captured something special at the garden? Share it with us — our team looks at every photo before it appears here.</p>
+            <button type="button" class="btn btn-solid reveal" id="shareOpen">Share your photos</button>
+
+            <div class="community-grid" id="communityGrid"></div>
+            <p class="community-empty" id="communityEmpty" hidden>No photos yet — be the first to share a moment from the garden.</p>
+            <button type="button" class="btn btn-ghost community-more" id="communityMore" hidden>Show more</button>
+        </section>
+
         <section class="visit" id="visit">
             <div class="visit-card reveal">
                 <div>
@@ -781,10 +1105,50 @@
         <span>© 2026 Zahabu Culture Garden</span>
     </footer>
 
-    <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Menu page">
+
+    <dialog class="share-dialog" id="shareDialog" aria-labelledby="shareTitle">
+        <form class="share-form" id="shareForm" novalidate>
+            <div class="share-head">
+                <div>
+                    <h3 id="shareTitle">Share your photos</h3>
+                    <p>Up to 5 photos at a time. We strip location data from every photo, and nothing goes live until our team approves it.</p>
+                </div>
+                <button type="button" class="share-close" id="shareClose" aria-label="Close">✕</button>
+            </div>
+
+            <label class="dropzone" id="dropzone">
+                <input type="file" id="shareFiles" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple>
+                <strong>Choose photos</strong>
+                <span>or drag them here · JPEG, PNG, WebP</span>
+            </label>
+
+            <div class="share-previews" id="sharePreviews"></div>
+
+            <div class="field">
+                <label for="shareCredit">Credit name (optional)</label>
+                <input type="text" id="shareCredit" maxlength="60" autocomplete="name" placeholder="How should we credit you? e.g. Wanjiru K. or @handle">
+            </div>
+
+            <label class="consent">
+                <input type="checkbox" id="shareConsent">
+                <span>I took these photos, and anyone clearly shown in them is happy for them to be shared on zahabu.co.ke.</span>
+            </label>
+
+            <div id="turnstile"></div>
+
+            <p class="share-status" id="shareStatus" role="status" aria-live="polite"></p>
+
+            <button type="submit" class="btn btn-solid" id="shareSubmit">Send for review</button>
+        </form>
+    </dialog>
+
+    <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Image viewer">
         <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close">✕</button>
         <button type="button" class="lightbox-prev" id="lightboxPrev" aria-label="Previous page">←</button>
-        <img id="lightboxImage" src="" alt="">
+        <figure class="lightbox-figure">
+            <img id="lightboxImage" src="" alt="">
+            <figcaption class="lightbox-caption" id="lightboxCaption" hidden></figcaption>
+        </figure>
         <button type="button" class="lightbox-next" id="lightboxNext" aria-label="Next page">→</button>
     </div>
 
@@ -904,7 +1268,7 @@
             slide.addEventListener("click", () => {
                 if (dragMoved) return;
                 const i = slides.indexOf(slide);
-                if (i === current) openLightbox();
+                if (i === current) { paused = true; openLightbox(menuLightbox); }
                 else { goTo(i); restart(); }
             });
         });
@@ -949,29 +1313,45 @@
         const lightbox = document.getElementById("lightbox");
         const lightboxImage = document.getElementById("lightboxImage");
 
-        function showInLightbox(){
-            const img = slides[current].querySelector("img");
-            lightboxImage.src = img.src;
-            lightboxImage.alt = img.alt;
+        const lightboxCaption = document.getElementById("lightboxCaption");
+
+        // A provider supplies the images: step(delta) moves and returns {src, alt, caption}; close() restores focus.
+        let lightboxProvider = null;
+
+        function showInLightbox(item){
+            lightboxImage.src = item.src;
+            lightboxImage.alt = item.alt;
+            lightboxCaption.textContent = item.caption || "";
+            lightboxCaption.hidden = !item.caption;
         }
 
-        function openLightbox(){
-            showInLightbox();
+        function openLightbox(provider){
+            lightboxProvider = provider;
+            showInLightbox(provider.step(0));
             lightbox.classList.add("is-open");
-            paused = true;
             document.getElementById("lightboxClose").focus();
         }
 
         function closeLightbox(){
             lightbox.classList.remove("is-open");
-            paused = false;
-            slides[current].focus({ preventScroll:true });
+            lightboxProvider.close();
         }
 
         function stepLightbox(delta){
-            goTo(current + delta);
-            showInLightbox();
+            showInLightbox(lightboxProvider.step(delta));
         }
+
+        const menuLightbox = {
+            step(delta){
+                if (delta) goTo(current + delta);
+                const img = slides[current].querySelector("img");
+                return { src:img.src, alt:img.alt };
+            },
+            close(){
+                paused = false;
+                slides[current].focus({ preventScroll:true });
+            }
+        };
 
         document.getElementById("lightboxClose").addEventListener("click", closeLightbox);
         document.getElementById("lightboxPrev").addEventListener("click", () => stepLightbox(-1));
@@ -986,6 +1366,248 @@
             if (e.key === "Escape") closeLightbox();
             if (e.key === "ArrowLeft") stepLightbox(-1);
             if (e.key === "ArrowRight") stepLightbox(1);
+        });
+
+        /* ---------- Community photos ---------- */
+
+        const isLocal = ["localhost", "127.0.0.1"].includes(location.hostname);
+        // Served by the zahabu-photos Worker (photos-worker.mjs); `node preview.mjs` runs it on :5173 locally.
+        const PHOTO_API = isLocal ? (location.port === "5173" ? "" : "http://localhost:5173") : "https://photos.zahabu.co.ke";
+        // Cloudflare Turnstile site key for zahabu.co.ke; locally, Cloudflare's always-pass test key.
+        const TURNSTILE_SITE_KEY = isLocal ? "1x00000000000000000000AA" : "0x4AAAAAAFHmoNtXVh4PIyD2";
+        const MAX_SHARE = 5;
+        const PAGE_SIZE = 12;
+
+        const community = document.getElementById("community");
+        const communityGrid = document.getElementById("communityGrid");
+        const communityEmpty = document.getElementById("communityEmpty");
+        const communityMore = document.getElementById("communityMore");
+        let communityPhotos = [];
+        let communityShown = 0;
+        let communityIndex = 0;
+
+        const communityLightbox = {
+            step(delta){
+                const n = communityPhotos.length;
+                communityIndex = ((communityIndex + delta) % n + n) % n;
+                const photo = communityPhotos[communityIndex];
+                return {
+                    src:photo.full,
+                    alt:photo.credit ? `Photo by ${photo.credit} at Zahabu` : "Community photo at Zahabu",
+                    caption:photo.credit ? `Photo: ${photo.credit}` : ""
+                };
+            },
+            close(){
+                communityGrid.children[communityIndex]?.focus({ preventScroll:true });
+            }
+        };
+
+        function showMorePhotos(){
+            const next = communityPhotos.slice(communityShown, communityShown + PAGE_SIZE);
+            next.forEach((photo, offset) => {
+                const index = communityShown + offset;
+                const item = document.createElement("button");
+                item.type = "button";
+                item.className = "community-item";
+                const img = document.createElement("img");
+                img.src = photo.thumb;
+                img.width = photo.width;
+                img.height = photo.height;
+                img.loading = "lazy";
+                img.alt = photo.credit ? `Photo by ${photo.credit} at Zahabu` : "Community photo at Zahabu";
+                item.append(img);
+                if (photo.credit) {
+                    const credit = document.createElement("span");
+                    credit.className = "credit";
+                    credit.textContent = photo.credit;
+                    item.append(credit);
+                }
+                item.addEventListener("click", () => { communityIndex = index; openLightbox(communityLightbox); });
+                communityGrid.append(item);
+            });
+            communityShown += next.length;
+            communityMore.hidden = communityShown >= communityPhotos.length;
+        }
+
+        communityMore.addEventListener("click", showMorePhotos);
+
+        async function loadCommunity(){
+            try {
+                const response = await fetch(`${PHOTO_API}/api/photos`);
+                if (!response.ok) return;
+                communityPhotos = (await response.json()).photos || [];
+            } catch {
+                return; // photo service not reachable: leave the section hidden
+            }
+            communityGrid.replaceChildren();
+            communityShown = 0;
+            showMorePhotos();
+            communityEmpty.hidden = communityPhotos.length > 0;
+            community.hidden = false;
+            document.getElementById("communityNav").hidden = false;
+        }
+
+        loadCommunity();
+
+        /* ---------- Share dialog ---------- */
+
+        const shareDialog = document.getElementById("shareDialog");
+        const shareForm = document.getElementById("shareForm");
+        const shareFiles = document.getElementById("shareFiles");
+        const sharePreviews = document.getElementById("sharePreviews");
+        const shareStatus = document.getElementById("shareStatus");
+        const shareSubmit = document.getElementById("shareSubmit");
+        const dropzone = document.getElementById("dropzone");
+        let shareItems = [];
+        let turnstileWidget = null;
+
+        function setShareStatus(text, kind = ""){
+            shareStatus.textContent = text;
+            shareStatus.className = `share-status${kind ? ` is-${kind}` : ""}`;
+        }
+
+        function loadTurnstile(){
+            if (turnstileWidget !== null) return;
+            turnstileWidget = "loading";
+            window.onTurnstileLoad = () => {
+                turnstileWidget = turnstile.render("#turnstile", { sitekey:TURNSTILE_SITE_KEY, theme:"light" });
+            };
+            const script = document.createElement("script");
+            script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad";
+            script.async = true;
+            document.head.append(script);
+        }
+
+        // Re-encoding through a canvas resizes the photo and drops all EXIF data (GPS, camera, timestamps).
+        async function encodeJpeg(bitmap, maxEdge, quality, maxBytes){
+            const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(bitmap.width * scale);
+            canvas.height = Math.round(bitmap.height * scale);
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            let blob;
+            for (let q = quality; q >= .4; q -= .1) {
+                blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", q));
+                if (blob && blob.size <= maxBytes) return blob;
+            }
+            throw new Error("too large");
+        }
+
+        async function preparePhoto(file){
+            if (file.size > 40 * 1024 * 1024) throw new Error(`${file.name} is too large.`);
+            let bitmap;
+            try {
+                bitmap = await createImageBitmap(file);
+            } catch {
+                throw new Error(`Couldn't read ${file.name} — try a JPEG or PNG.`);
+            }
+            try {
+                return {
+                    full:await encodeJpeg(bitmap, 1800, .82, 2.8 * 1024 * 1024),
+                    thumb:await encodeJpeg(bitmap, 640, .78, 550 * 1024)
+                };
+            } catch {
+                throw new Error(`${file.name} is too large.`);
+            } finally {
+                bitmap.close();
+            }
+        }
+
+        function renderPreviews(){
+            sharePreviews.replaceChildren(...shareItems.map((item, index) => {
+                const tile = document.createElement("div");
+                tile.className = "share-preview";
+                const img = document.createElement("img");
+                img.src = item.previewUrl;
+                img.alt = "";
+                const remove = document.createElement("button");
+                remove.type = "button";
+                remove.textContent = "✕";
+                remove.setAttribute("aria-label", "Remove photo");
+                remove.addEventListener("click", () => {
+                    URL.revokeObjectURL(item.previewUrl);
+                    shareItems.splice(index, 1);
+                    renderPreviews();
+                });
+                tile.append(img, remove);
+                return tile;
+            }));
+        }
+
+        async function addFiles(files){
+            const room = MAX_SHARE - shareItems.length;
+            const picked = [...files].filter(file => file.type.startsWith("image/") || /\.(heic|heif)$/i.test(file.name));
+            if (!picked.length) return;
+            if (picked.length > room) setShareStatus(`You can share up to ${MAX_SHARE} photos at a time.`, "error");
+            else setShareStatus("Preparing photos…");
+            for (const file of picked.slice(0, room)) {
+                try {
+                    const prepared = await preparePhoto(file);
+                    shareItems.push({ ...prepared, previewUrl:URL.createObjectURL(prepared.thumb) });
+                    renderPreviews();
+                } catch (error) {
+                    setShareStatus(error.message, "error");
+                    return;
+                }
+            }
+            if (picked.length <= room) setShareStatus("");
+        }
+
+        function resetShare(){
+            shareItems.forEach(item => URL.revokeObjectURL(item.previewUrl));
+            shareItems = [];
+            renderPreviews();
+            shareForm.reset();
+            setShareStatus("");
+            shareSubmit.disabled = false;
+        }
+
+        document.getElementById("shareOpen").addEventListener("click", () => {
+            shareDialog.showModal();
+            loadTurnstile();
+        });
+        document.getElementById("shareClose").addEventListener("click", () => shareDialog.close());
+        shareDialog.addEventListener("click", e => { if (e.target === shareDialog) shareDialog.close(); });
+
+        shareFiles.addEventListener("change", () => { addFiles(shareFiles.files); shareFiles.value = ""; });
+        ["dragenter", "dragover"].forEach(type => dropzone.addEventListener(type, e => { e.preventDefault(); dropzone.classList.add("is-dragging"); }));
+        ["dragleave", "drop"].forEach(type => dropzone.addEventListener(type, () => dropzone.classList.remove("is-dragging")));
+        dropzone.addEventListener("drop", e => { e.preventDefault(); addFiles(e.dataTransfer.files); });
+
+        shareForm.addEventListener("submit", async e => {
+            e.preventDefault();
+            if (!shareItems.length) return setShareStatus("Choose at least one photo.", "error");
+            if (!document.getElementById("shareConsent").checked) return setShareStatus("Please confirm you took these photos and have permission to share them.", "error");
+            const token = typeof turnstile !== "undefined" && typeof turnstileWidget === "string" && turnstileWidget !== "loading" ? turnstile.getResponse(turnstileWidget) : "";
+            if (!token) return setShareStatus("Please wait for the spam check to finish, then try again.", "error");
+
+            const form = new FormData();
+            form.append("consent", "yes");
+            form.append("credit", document.getElementById("shareCredit").value.trim());
+            form.append("cf-turnstile-response", token);
+            shareItems.forEach((item, i) => {
+                form.append(`full_${i}`, item.full, `photo-${i}.jpg`);
+                form.append(`thumb_${i}`, item.thumb, `photo-${i}-thumb.jpg`);
+            });
+
+            shareSubmit.disabled = true;
+            setShareStatus(`Uploading ${shareItems.length} photo${shareItems.length > 1 ? "s" : ""}…`);
+            try {
+                const response = await fetch(`${PHOTO_API}/api/photos`, { method:"POST", body:form });
+                const body = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(body.error || "Upload failed. Please try again.");
+                const count = shareItems.length;
+                resetShare();
+                setShareStatus(`Thank you! We got your ${count > 1 ? `${count} photos` : "photo"}. Our team will review ${count > 1 ? "them" : "it"} before ${count > 1 ? "they appear" : "it appears"} on the site.`, "success");
+            } catch (error) {
+                shareSubmit.disabled = false;
+                setShareStatus(error.message === "Failed to fetch" ? "Couldn't reach our server. Check your connection and try again." : error.message, "error");
+            } finally {
+                if (typeof turnstile !== "undefined" && turnstileWidget && turnstileWidget !== "loading") turnstile.reset(turnstileWidget);
+            }
         });
     </script>
 </body>

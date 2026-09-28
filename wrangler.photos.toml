@@ -1,0 +1,28 @@
+# Community photo submissions (photos.zahabu.co.ke). Separate from the tech tracker Worker in wrangler.toml
+# but shares its D1 database. Build with `npm run build`, deploy with `npx wrangler deploy -c wrangler.photos.toml`.
+name = "zahabu-photos"
+main = "dist/photos/index.js"
+compatibility_date = "2026-09-16"
+workers_dev = false
+preview_urls = false
+routes = [{ pattern = "photos.zahabu.co.ke", custom_domain = true }]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zahabu-tracker"
+database_id = "c1922d96-3031-4de5-97e9-dfe2bc043286"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "zahabu-community-photos"
+
+[vars]
+ALLOWED_ORIGINS = "https://zahabu.co.ke,https://www.zahabu.co.ke"
+# From Zero Trust > Access > Applications (the "photos admin" app): team domain and Application Audience (AUD) tag.
+# Until both are set, /admin refuses every request.
+ACCESS_TEAM_DOMAIN = "muddy-fire-042e.cloudflareaccess.com"
+ACCESS_AUD = "b36b4da28e0fd44c1a706aaca98911a163a6d522873ac592443b1e5901108db2"
+
+# Secrets (set with `npx wrangler secret put <NAME> -c wrangler.photos.toml`, never committed):
+#   TURNSTILE_SECRET - secret key of the Turnstile widget for zahabu.co.ke
+#   IP_SALT          - any long random string; salts the hashed IPs used for rate limiting

@@ -1,4 +1,4 @@
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 export const workDates = sqliteTable('work_dates', {
   id: text('id').primaryKey(),
   date: text('date').notNull().unique(),
@@ -11,4 +11,15 @@ export const workDates = sqliteTable('work_dates', {
   approvedBy: text('approved_by').notNull().default(''),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
+});
+export const communityPhotos = sqliteTable('community_photos', {
+  id: text('id').primaryKey(),
+  status: text('status').notNull().default('pending'),
+  credit: text('credit').notNull().default(''),
+  width: integer('width').notNull(),
+  height: integer('height').notNull(),
+  ipHash: text('ip_hash').notNull().default(''),
+  createdAt: text('created_at').notNull(),
+  reviewedAt: text('reviewed_at'),
+  reviewedBy: text('reviewed_by'),
 });
