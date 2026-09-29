@@ -21,11 +21,18 @@ Two things that share source files but are **not** deployed the same way — see
 - **Push through git, not GitHub's web upload UI.** This repo and the GitHub remote once had completely unrelated commit histories because files were being dragged/pasted into GitHub directly instead of pushed from here — that caused the `assets/` folder to go missing from production (never committed locally, so never pushed) and needed a `--allow-unrelated-histories` merge to fix. Always commit and `git push origin main` from this working copy.
 - **After a push, give GitHub Pages' CDN a minute or two.** Right after a deploy, some edge nodes may briefly serve stale/incomplete responses for changed assets; a hard refresh (or waiting ~a minute) clears it. Don't assume a broken image right after pushing means the deploy failed — verify with `curl -sI <url>` and check headers/byte size before concluding something's wrong.
 
+## This Month (weekly programming)
+
+- Section `#this-month` in `index.html` (nav: "This Month"), between About and Menus. Transparent over the watercolor (no panel): one single-bordered row per recurring weekly night with day, night name, and that night's logo on the right. No artist names and no "Tonight" highlight, both by request.
+- Night logos are in `images/events/` (`textures`, `jirani`, `rnb-live`, `sundowner`). They were cut out of the weekly poster: white logo pixels keyed to alpha and recoloured to ink `#141814` (PIL, per-logo thresholds, since each sat on a different photo background). For a new or changed night, ask for the logo as a PNG/SVG rather than re-keying from a poster; the poster versions are only ~180px wide.
+- **Updating:** add/remove/reorder `<li class="week-night">` rows. New logo files must also be added to `build.mjs`'s `paths`.
+
 ## Community photos
 
 - **Flow:** browser resizes/re-encodes each photo to JPEG (1800px full + 640px thumb) via canvas, which drops EXIF/GPS → `POST https://photos.zahabu.co.ke/api/photos` (multipart: `full_N`/`thumb_N`, `credit`, `consent=yes`, `cf-turnstile-response`) → Worker verifies Turnstile, origin, sizes, per-IP hourly limit, re-strips JPEG metadata server-side (`sanitizeJpeg`) and reads true dimensions from the SOF header → R2 (`full/<id>.jpg`, `thumb/<id>.jpg`) + D1 row with `status='pending'`.
 - **Nothing is public until approved.** `/api/photos` and `/media/...` only return `approved` rows; pending images are only reachable under `/admin/media/...`.
 - **Staff area is everything under `/admin`** (page, `/admin/api/...`, `/admin/media/...`) so a single Cloudflare Access application on path `admin` covers it. The Worker also verifies the `Cf-Access-Jwt-Assertion` JWT itself (signature against the team's certs, `aud`, `iss`, `exp`) and **fails closed** when `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` aren't set. `LOCAL_DEV` (set only by `preview.mjs`) bypasses this.
+- **`COMMUNITY_ENABLED` in `index.html` must be `true` for the section to show at all.** It was shipped `false` because `TURNSTILE_SECRET` wasn't set on the Worker yet (uploads would fail the spam check). Set the secret with `npx wrangler secret put TURNSTILE_SECRET -c wrangler.photos.toml`, then flip the flag.
 - **The landing page section stays hidden until `GET /api/photos` succeeds**, so `index.html` can be pushed to GitHub Pages before the Worker is live without showing a broken feature. The Community nav link is unhidden at the same time.
 - **Config in `index.html`:** `PHOTO_API` and `TURNSTILE_SITE_KEY` constants near the community script. The production site key is the "Zahabu community photos" widget (hostname `zahabu.co.ke`, covers subdomains); locally it uses Cloudflare's always-pass test key.
 - **Deploying:** `npm run build`, then `npx wrangler deploy -c wrangler.photos.toml`. Never deploy the photos code via `wrangler.toml` — that's the live tracker Worker (`zahabu-tech-tracker`) with real crew data, and it has its own routes.
@@ -49,6 +56,7 @@ Two things that share source files but are **not** deployed the same way — see
 - `preview.mjs` — local dev server (`http://localhost:5173`) using a throwaway SQLite DB in `/private/tmp`; never touches hosted records
 - `wrangler.toml` — Cloudflare Worker + D1 binding config
 - `assets/` — `garden-background.jpg` (site background), `menu-food.pdf`/`menu-drinks.pdf`/`menu-brunch.pdf` (source menus), `menu-pages/*.jpg` (each PDF page pre-rendered to an image for the on-page gallery)
+- `images/events/*.png` — transparent ink-coloured logos for each weekly night (This Month section)
 - `images/logo-wordmark.png` — high-res (721×140) transparent ZAHABU wordmark used by `index.html`, tightly cropped (no padding). Extracted from the soft-masked logo image embedded in `assets/menu-food.pdf` page 2; if a sharper logo is ever needed, get an SVG from the designer rather than upscaling.
 - `images/logo.png` — older low-res (180×180, padded) logo, still used by `tracker.html`/`viewer.html`; `images/favicon.ico`
 - `fonts/Futura-Regular.ttf` — the only font used site-wide

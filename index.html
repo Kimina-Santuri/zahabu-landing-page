@@ -322,6 +322,78 @@
             to{ transform:translateX(-50%); }
         }
 
+        /* ---------- THIS MONTH ---------- */
+
+        .week-inner{
+            max-width:920px;
+            margin:0 auto;
+        }
+
+        .week-head{
+            text-align:center;
+            margin-bottom:40px;
+        }
+
+        .week-tags{
+            display:flex;
+            justify-content:center;
+            gap:8px;
+            flex-wrap:wrap;
+            margin-top:22px;
+        }
+
+        .week-tag{
+            padding:7px 12px;
+            border:1.5px solid var(--ink);
+            font-size:11px;
+            letter-spacing:.16em;
+            text-transform:uppercase;
+        }
+
+        .week-list{
+            list-style:none;
+            display:flex;
+            flex-direction:column;
+            gap:18px;
+        }
+
+        .week-night{
+            position:relative;
+            display:grid;
+            grid-template-columns:80px 1fr auto;
+            align-items:center;
+            gap:20px;
+            min-height:96px;
+            padding:16px 26px;
+            border:1.5px solid var(--ink);
+        }
+
+        .week-night:hover{
+            background:rgba(255,255,255,.22);
+        }
+
+        .week-day{
+            font-size:13px;
+            letter-spacing:.2em;
+            text-transform:uppercase;
+            color:var(--ink-soft);
+        }
+
+        .week-night h3{
+            font-weight:normal;
+            font-size:clamp(22px, 3vw, 32px);
+            line-height:1.05;
+            letter-spacing:.02em;
+            text-transform:uppercase;
+        }
+
+        .week-logo{
+            justify-self:end;
+            width:auto;
+            max-width:170px;
+            max-height:58px;
+        }
+
         /* ---------- MENUS ---------- */
 
         .menus{
@@ -911,18 +983,47 @@
 
         @media (max-width:760px){
 
+            .nav{
+                justify-content:center;
+            }
+
+            .nav-logo{
+                display:none;
+            }
+
             .nav-links{
-                gap:16px;
+                gap:14px;
             }
 
             .nav-links a{
                 font-size:11px;
-                letter-spacing:.12em;
+                letter-spacing:.1em;
             }
 
             .visit-card{
                 grid-template-columns:1fr;
                 text-align:center;
+            }
+
+            .week-night{
+                grid-template-columns:1fr auto;
+                gap:4px 16px;
+                padding:14px 18px;
+            }
+
+            .week-day{
+                grid-column:1;
+            }
+
+            .week-night h3{
+                grid-column:1;
+            }
+
+            .week-logo{
+                grid-column:2;
+                grid-row:1 / span 2;
+                max-width:110px;
+                max-height:44px;
             }
 
             .visit-details .btn{
@@ -947,6 +1048,13 @@
             footer{
                 justify-content:center;
                 text-align:center;
+            }
+        }
+
+        @media (max-width:440px){
+
+            .nav-links li:first-child{
+                display:none;
             }
         }
 
@@ -982,6 +1090,7 @@
         </a>
         <ul class="nav-links">
             <li><a href="#about">About</a></li>
+            <li><a href="#this-month">This Month</a></li>
             <li><a href="#menus">Menus</a></li>
             <li id="communityNav" hidden><a href="#community">Community</a></li>
             <li><a href="#visit">Visit</a></li>
@@ -1023,6 +1132,43 @@
                     <span>Music</span><span>✳</span><span>Food</span><span>✳</span><span>Skate</span><span>✳</span><span>Broadcast</span><span>✳</span><span>Creative Practice</span><span>✳</span><span>Community</span><span>✳</span>
                     <span>Music</span><span>✳</span><span>Food</span><span>✳</span><span>Skate</span><span>✳</span><span>Broadcast</span><span>✳</span><span>Creative Practice</span><span>✳</span><span>Community</span><span>✳</span>
                 </div>
+            </div>
+        </section>
+
+        <section class="week" id="this-month">
+            <div class="week-inner">
+                <div class="week-head">
+                    <span class="eyebrow reveal">Weekly programming</span>
+                    <h2 class="section-title reveal">This month</h2>
+                    <div class="week-tags reveal">
+                        <span class="week-tag">The Mall, Rooftop</span>
+                        <span class="week-tag">Free entry</span>
+                    </div>
+                </div>
+
+                <!-- One <li> per weekly night. Logos live in images/events/. -->
+                <ul class="week-list">
+                    <li class="week-night reveal">
+                        <span class="week-day">Tue</span>
+                        <h3>Textures</h3>
+                        <img class="week-logo" src="images/events/textures.png" alt="" loading="lazy">
+                    </li>
+                    <li class="week-night reveal">
+                        <span class="week-day">Wed</span>
+                        <h3>Jirani</h3>
+                        <img class="week-logo" src="images/events/jirani.png" alt="" loading="lazy">
+                    </li>
+                    <li class="week-night reveal">
+                        <span class="week-day">Thu</span>
+                        <h3>RnB Live</h3>
+                        <img class="week-logo" src="images/events/rnb-live.png" alt="" loading="lazy">
+                    </li>
+                    <li class="week-night reveal">
+                        <span class="week-day">Fri</span>
+                        <h3>Zahabu Sundowner</h3>
+                        <img class="week-logo" src="images/events/sundowner.png" alt="" loading="lazy">
+                    </li>
+                </ul>
             </div>
         </section>
 
@@ -1375,6 +1521,8 @@
         const PHOTO_API = isLocal ? (location.port === "5173" ? "" : "http://localhost:5173") : "https://photos.zahabu.co.ke";
         // Cloudflare Turnstile site key for zahabu.co.ke; locally, Cloudflare's always-pass test key.
         const TURNSTILE_SITE_KEY = isLocal ? "1x00000000000000000000AA" : "0x4AAAAAAFHmoNtXVh4PIyD2";
+        // Off until TURNSTILE_SECRET is set on the zahabu-photos Worker; while false the Community section and nav link stay hidden.
+        const COMMUNITY_ENABLED = false;
         const MAX_SHARE = 5;
         const PAGE_SIZE = 12;
 
@@ -1447,7 +1595,7 @@
             document.getElementById("communityNav").hidden = false;
         }
 
-        loadCommunity();
+        if (COMMUNITY_ENABLED) loadCommunity();
 
         /* ---------- Share dialog ---------- */
 
