@@ -21,9 +21,9 @@ Two things that share source files but are **not** deployed the same way — see
 - **Push through git, not GitHub's web upload UI.** This repo and the GitHub remote once had completely unrelated commit histories because files were being dragged/pasted into GitHub directly instead of pushed from here — that caused the `assets/` folder to go missing from production (never committed locally, so never pushed) and needed a `--allow-unrelated-histories` merge to fix. Always commit and `git push origin main` from this working copy.
 - **After a push, give GitHub Pages' CDN a minute or two.** Right after a deploy, some edge nodes may briefly serve stale/incomplete responses for changed assets; a hard refresh (or waiting ~a minute) clears it. Don't assume a broken image right after pushing means the deploy failed — verify with `curl -sI <url>` and check headers/byte size before concluding something's wrong.
 
-## This Month (weekly programming)
+## Weekly Programming
 
-- Section `#this-month` in `index.html` (nav: "This Month"), between About and Menus. Transparent over the watercolor (no panel): one single-bordered row per recurring weekly night with day, night name, and that night's logo on the right. No artist names and no "Tonight" highlight, both by request.
+- Section `#programming` in `index.html` (heading "Weekly programming", nav: "Programming"), between About and Menus. Transparent over the watercolor (no panel): one single-bordered row per recurring weekly night with day, night name, and that night's logo on the right. No artist names and no "Tonight" highlight, both by request.
 - Night logos are in `images/events/` (`textures`, `interlude`, `jirani`, `rnb-live`, `sundowner`). They were cut out of the weekly poster: white logo pixels keyed to alpha and recoloured to ink `#141814` (PIL, per-logo thresholds, since each sat on a different photo background). For a new or changed night, ask for the logo as a PNG/SVG rather than re-keying from a poster; the poster versions are only ~180px wide.
 - Tuesday alternates between Textures and Interlude: that row uses `.week-logos` (two logos with a divider; stacked on mobile) and a muted `.week-alt` second name. `interlude.png` was colour-keyed (green text on pink) from its own poster at ~720px, so it's sharper than the others.
 - **Updating:** add/remove/reorder `<li class="week-night">` rows. New logo files must also be added to `build.mjs`'s `paths`.
@@ -57,7 +57,7 @@ Two things that share source files but are **not** deployed the same way — see
 - `preview.mjs` — local dev server (`http://localhost:5173`) using a throwaway SQLite DB in `/private/tmp`; never touches hosted records
 - `wrangler.toml` — Cloudflare Worker + D1 binding config
 - `assets/` — `garden-background.jpg` (site background), `menu-food.pdf`/`menu-drinks.pdf`/`menu-brunch.pdf` (source menus), `menu-pages/*.jpg` (each PDF page pre-rendered to an image for the on-page gallery)
-- `images/events/*.png` — transparent ink-coloured logos for each weekly night (This Month section)
+- `images/events/*.png` — transparent ink-coloured logos for each weekly night (Weekly Programming section)
 - `images/logo-wordmark.png` — high-res (721×140) transparent ZAHABU wordmark used by `index.html`, tightly cropped (no padding). Extracted from the soft-masked logo image embedded in `assets/menu-food.pdf` page 2; if a sharper logo is ever needed, get an SVG from the designer rather than upscaling.
 - `images/logo.png` — older low-res (180×180, padded) logo, still used by `tracker.html`/`viewer.html`; `images/favicon.ico`
 - `fonts/Futura-Regular.ttf` — the only font used site-wide
