@@ -368,8 +368,28 @@
             border:1.5px solid var(--ink);
         }
 
-        .week-night:hover{
-            background:rgba(255,255,255,.22);
+        /* Hover "pop". Uses the standalone `scale` property so it doesn't fight the
+           scroll-reveal's `transform`; the transition list is set on .week-night.reveal
+           so it outranks .reveal's own transition. */
+        .week-night.reveal{
+            transition:opacity .9s var(--ease), transform .9s var(--ease), scale .35s var(--ease), background .35s ease, box-shadow .35s ease;
+        }
+
+        .week-logo{
+            transition:scale .35s var(--ease);
+        }
+
+        @media (hover:hover){
+
+            .week-night:hover{
+                scale:1.025;
+                background:rgba(255,255,255,.42);
+                box-shadow:0 22px 44px -20px rgba(20,40,20,.45);
+            }
+
+            .week-night:hover .week-logo{
+                scale:1.06;
+            }
         }
 
         .week-day{
@@ -392,6 +412,29 @@
             width:auto;
             max-width:170px;
             max-height:58px;
+        }
+
+        /* Nights that alternate between two shows */
+        .week-alt{
+            color:var(--ink-soft);
+        }
+
+        .week-logos{
+            justify-self:end;
+            display:flex;
+            align-items:center;
+            gap:16px;
+        }
+
+        .week-logos .week-logo{
+            max-width:140px;
+            max-height:40px;
+        }
+
+        .week-logos-divider{
+            align-self:stretch;
+            width:1px;
+            background:rgba(20,24,20,.35);
         }
 
         /* ---------- MENUS ---------- */
@@ -1019,11 +1062,28 @@
                 grid-column:1;
             }
 
-            .week-logo{
+            .week-logo,
+            .week-logos{
                 grid-column:2;
                 grid-row:1 / span 2;
                 max-width:110px;
                 max-height:44px;
+            }
+
+            .week-logos{
+                flex-direction:column;
+                align-items:flex-end;
+                gap:8px;
+                max-height:none;
+            }
+
+            .week-logos .week-logo{
+                max-width:96px;
+                max-height:22px;
+            }
+
+            .week-logos-divider{
+                display:none;
             }
 
             .visit-details .btn{
@@ -1150,8 +1210,12 @@
                 <ul class="week-list">
                     <li class="week-night reveal">
                         <span class="week-day">Tue</span>
-                        <h3>Textures</h3>
-                        <img class="week-logo" src="images/events/textures.png" alt="" loading="lazy">
+                        <h3>Textures <span class="week-alt">/ Interlude</span></h3>
+                        <div class="week-logos">
+                            <img class="week-logo" src="images/events/textures.png" alt="" loading="lazy">
+                            <span class="week-logos-divider" aria-hidden="true"></span>
+                            <img class="week-logo" src="images/events/interlude.png" alt="" loading="lazy">
+                        </div>
                     </li>
                     <li class="week-night reveal">
                         <span class="week-day">Wed</span>

@@ -24,7 +24,8 @@ Two things that share source files but are **not** deployed the same way — see
 ## This Month (weekly programming)
 
 - Section `#this-month` in `index.html` (nav: "This Month"), between About and Menus. Transparent over the watercolor (no panel): one single-bordered row per recurring weekly night with day, night name, and that night's logo on the right. No artist names and no "Tonight" highlight, both by request.
-- Night logos are in `images/events/` (`textures`, `jirani`, `rnb-live`, `sundowner`). They were cut out of the weekly poster: white logo pixels keyed to alpha and recoloured to ink `#141814` (PIL, per-logo thresholds, since each sat on a different photo background). For a new or changed night, ask for the logo as a PNG/SVG rather than re-keying from a poster; the poster versions are only ~180px wide.
+- Night logos are in `images/events/` (`textures`, `interlude`, `jirani`, `rnb-live`, `sundowner`). They were cut out of the weekly poster: white logo pixels keyed to alpha and recoloured to ink `#141814` (PIL, per-logo thresholds, since each sat on a different photo background). For a new or changed night, ask for the logo as a PNG/SVG rather than re-keying from a poster; the poster versions are only ~180px wide.
+- Tuesday alternates between Textures and Interlude: that row uses `.week-logos` (two logos with a divider; stacked on mobile) and a muted `.week-alt` second name. `interlude.png` was colour-keyed (green text on pink) from its own poster at ~720px, so it's sharper than the others.
 - **Updating:** add/remove/reorder `<li class="week-night">` rows. New logo files must also be added to `build.mjs`'s `paths`.
 
 ## Community photos
