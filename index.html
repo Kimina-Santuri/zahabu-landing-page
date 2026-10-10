@@ -869,6 +869,57 @@
             transform:none;
         }
 
+        /* ---------- CODE OF CONDUCT ---------- */
+
+        .conduct{
+            text-align:center;
+        }
+
+        .conduct-lead{
+            max-width:620px;
+            margin:22px auto 0;
+            font-size:17px;
+            line-height:1.75;
+            color:var(--ink-soft);
+        }
+
+        .conduct-posters{
+            max-width:920px;
+            margin:44px auto;
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:clamp(18px, 3vw, 36px);
+        }
+
+        .conduct-poster{
+            display:block;
+            width:100%;
+            padding:0;
+            border:0;
+            background:none;
+            cursor:zoom-in;
+            transition:transform .35s var(--ease), box-shadow .35s ease;
+            box-shadow:0 24px 50px -28px rgba(20,40,20,.55);
+        }
+
+        .conduct-poster img{
+            width:100%;
+            height:auto;
+        }
+
+        .conduct-poster:hover{
+            transform:translateY(-4px);
+            box-shadow:0 30px 60px -26px rgba(20,40,20,.6);
+        }
+
+        .conduct-posters figcaption{
+            margin-top:14px;
+            font-size:12px;
+            letter-spacing:.2em;
+            text-transform:uppercase;
+            color:var(--muted);
+        }
+
         /* ---------- VISIT ---------- */
 
         .visit-card{
@@ -1277,6 +1328,30 @@
             </div>
         </section>
 
+        <section class="conduct" id="conduct">
+            <span class="eyebrow reveal">Code of conduct</span>
+            <h2 class="section-title reveal">Respect. Consent. Care.</h2>
+            <p class="conduct-lead reveal">Zahabu is a shared space for creativity and community. We stand for respect, consent, and care — on and off the dance floor.</p>
+
+            <!-- Posters live in images/conduct/; full wording is on code-of-conduct.html. -->
+            <div class="conduct-posters">
+                <figure class="reveal">
+                    <button type="button" class="conduct-poster" data-caption="English">
+                        <img src="images/conduct/poster-en.jpg" alt="Zahabu code of conduct poster in English: Respect. Consent. Care." width="1131" height="1600" loading="lazy">
+                    </button>
+                    <figcaption>English</figcaption>
+                </figure>
+                <figure class="reveal">
+                    <button type="button" class="conduct-poster" data-caption="Kiswahili">
+                        <img src="images/conduct/poster-sw.jpg" alt="Zahabu code of conduct poster in Kiswahili: Heshima. Ridhaa. Kujali." width="1131" height="1600" loading="lazy">
+                    </button>
+                    <figcaption>Kiswahili</figcaption>
+                </figure>
+            </div>
+
+            <a class="btn btn-solid reveal" href="code-of-conduct.html">Read the full code of conduct</a>
+        </section>
+
         <section class="community" id="community" hidden>
             <span class="eyebrow reveal">From the community</span>
             <h2 class="section-title reveal">Moments at Zahabu</h2>
@@ -1312,6 +1387,7 @@
 
     <footer>
         <img src="images/logo-wordmark.png" alt="Zahabu">
+        <a href="code-of-conduct.html">Code of conduct</a>
         <span>© 2026 Zahabu Culture Garden</span>
     </footer>
 
@@ -1562,6 +1638,25 @@
                 slides[current].focus({ preventScroll:true });
             }
         };
+
+        const posters = [...document.querySelectorAll(".conduct-poster")];
+        let posterIndex = 0;
+
+        const posterLightbox = {
+            step(delta){
+                posterIndex = (posterIndex + delta + posters.length) % posters.length;
+                const img = posters[posterIndex].querySelector("img");
+                return { src:img.src, alt:img.alt, caption:posters[posterIndex].dataset.caption };
+            },
+            close(){
+                posters[posterIndex].focus({ preventScroll:true });
+            }
+        };
+
+        posters.forEach((poster, i) => poster.addEventListener("click", () => {
+            posterIndex = i;
+            openLightbox(posterLightbox);
+        }));
 
         document.getElementById("lightboxClose").addEventListener("click", closeLightbox);
         document.getElementById("lightboxPrev").addEventListener("click", () => stepLightbox(-1));

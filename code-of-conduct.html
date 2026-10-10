@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Code of Conduct — Zahabu Culture Garden</title>
+    <meta name="description" content="Zahabu Culture Garden's code of conduct: respect, consent and care — on and off the dance floor.">
+
+    <link rel="icon" href="images/favicon.ico">
+
+    <style>
+
+        @font-face{
+            font-family:"Futura";
+            src:url("fonts/Futura-Regular.ttf") format("truetype");
+            font-weight:normal;
+            font-style:normal;
+            font-display:swap;
+        }
+
+        :root{
+            --ink:#141814;
+            --ink-soft:#3d4640;
+            --muted:#5f6a63;
+            --glass:rgba(255,255,255,.62);
+            --glass-border:rgba(255,255,255,.7);
+            --line:rgba(20,24,20,.14);
+            --forest:#2f5d3a;
+            --radius:22px;
+            --gutter:clamp(16px, 5vw, 56px);
+            --ease:cubic-bezier(.22,.7,.2,1);
+        }
+
+        *{
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
+        }
+
+        html,
+        body{
+            width:100%;
+            min-height:100%;
+            overflow-x:hidden;
+        }
+
+        body{
+            font-family:"Futura", sans-serif;
+            font-size:16px;
+            color:var(--ink);
+            background:#e9f0ea;
+            -webkit-font-smoothing:antialiased;
+        }
+
+        a{
+            color:inherit;
+            text-decoration:none;
+        }
+
+        img{
+            display:block;
+        }
+
+        :focus-visible{
+            outline:2px solid var(--ink);
+            outline-offset:3px;
+        }
+
+        /* ---------- BACKGROUND (same as index.html) ---------- */
+
+        .bg-photo,
+        .bg-overlay{
+            position:fixed;
+            inset:0;
+        }
+
+        .bg-photo{
+            background:url("assets/garden-background.jpg") center/cover no-repeat;
+            z-index:-2;
+        }
+
+        .bg-overlay{
+            z-index:-1;
+            background:linear-gradient(
+                to bottom,
+                rgba(255,255,255,.12) 0%,
+                rgba(255,255,255,.34) 45%,
+                rgba(255,255,255,.55) 100%
+            );
+        }
+
+        /* ---------- HEADER ---------- */
+
+        .top{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:16px;
+            padding:22px var(--gutter);
+        }
+
+        .top img{
+            width:96px;
+            height:auto;
+        }
+
+        .back{
+            font-size:13px;
+            letter-spacing:.16em;
+            text-transform:uppercase;
+            padding:6px 0;
+            border-bottom:1px solid transparent;
+            transition:border-color .2s ease;
+        }
+
+        .back:hover{
+            border-bottom-color:currentColor;
+        }
+
+        /* ---------- DOCUMENT ---------- */
+
+        main{
+            padding:clamp(24px, 5vw, 56px) var(--gutter) clamp(64px, 10vw, 120px);
+        }
+
+        .doc{
+            max-width:760px;
+            margin:0 auto;
+            padding:clamp(28px, 6vw, 64px);
+            border-radius:var(--radius);
+            background:var(--glass);
+            border:1px solid var(--glass-border);
+            -webkit-backdrop-filter:blur(18px) saturate(1.2);
+            backdrop-filter:blur(18px) saturate(1.2);
+            box-shadow:0 30px 80px -40px rgba(20,40,20,.4);
+        }
+
+        .eyebrow{
+            display:block;
+            font-size:12px;
+            letter-spacing:.26em;
+            text-transform:uppercase;
+            color:var(--muted);
+            margin-bottom:18px;
+        }
+
+        h1{
+            font-weight:normal;
+            font-size:clamp(34px, 6vw, 60px);
+            line-height:1.02;
+            text-transform:uppercase;
+        }
+
+
+        .intro{
+            margin-top:32px;
+            font-size:clamp(19px, 2.4vw, 23px);
+            line-height:1.5;
+        }
+
+        h2{
+            font-weight:normal;
+            font-size:clamp(20px, 2.6vw, 26px);
+            line-height:1.15;
+            text-transform:uppercase;
+            letter-spacing:.02em;
+            margin:48px 0 16px;
+            padding-top:28px;
+            border-top:1px solid var(--line);
+        }
+
+        .doc p,
+        .doc li{
+            font-size:17px;
+            line-height:1.75;
+            color:var(--ink-soft);
+        }
+
+        .doc p + p,
+        .doc ul + p,
+        .doc p + ul{
+            margin-top:16px;
+        }
+
+        .doc ul{
+            padding-left:1.2em;
+        }
+
+        .doc li + li{
+            margin-top:8px;
+        }
+
+        .doc li::marker{
+            color:var(--forest);
+        }
+
+        strong{
+            font-weight:normal;
+            color:var(--ink);
+            text-decoration:underline;
+            text-decoration-thickness:1px;
+            text-underline-offset:4px;
+        }
+
+        .hotline{
+            margin-top:36px;
+            padding:22px 24px;
+            border:1.5px solid var(--ink);
+            display:flex;
+            align-items:center;
+            gap:20px;
+        }
+
+        .hotline-number{
+            font-size:clamp(34px, 6vw, 46px);
+            line-height:1;
+            color:var(--ink);
+        }
+
+        .doc .hotline p{
+            font-size:15px;
+            line-height:1.55;
+        }
+
+        .closing{
+            margin-top:48px;
+            font-size:clamp(20px, 2.6vw, 24px);
+            line-height:1.4;
+            text-align:center;
+            text-transform:uppercase;
+            letter-spacing:.02em;
+        }
+
+        footer{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:16px;
+            flex-wrap:wrap;
+            padding:40px var(--gutter);
+            border-top:1px solid var(--line);
+            font-size:12px;
+            letter-spacing:.14em;
+            text-transform:uppercase;
+            color:var(--ink-soft);
+        }
+
+        footer img{
+            width:72px;
+            height:auto;
+        }
+
+        @media (max-width:560px){
+
+            .hotline{
+                flex-direction:column;
+                align-items:flex-start;
+                gap:10px;
+            }
+
+            footer{
+                justify-content:center;
+                text-align:center;
+            }
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-photo"></div>
+    <div class="bg-overlay"></div>
+
+    <header class="top">
+        <a href="index.html" aria-label="Zahabu — home"><img src="images/logo-wordmark.png" alt="Zahabu"></a>
+        <a class="back" href="index.html">← Back to site</a>
+    </header>
+
+    <main>
+        <article class="doc">
+            <span class="eyebrow">Code of conduct</span>
+            <h1>Respect. Consent. Care.</h1>
+
+            <p class="intro">Zahabu is a shared space for creativity and community. We stand for respect, consent, and care — on and off the dance floor.</p>
+
+            <h2>Our approach</h2>
+            <p>Zahabu is a community built on respect, creativity and care. Everyone should feel safe, seen, and celebrated; whether performing, attending, volunteering, or simply passing through.</p>
+            <p>If someone crosses your boundaries or makes you uncomfortable, contact the staff or security immediately. We will listen and support you without judgement.</p>
+            <p>Your boundaries are yours. We stand by your right to safety and respect. Before engaging — to dance, chat, collaborate, or to connect — check in and get clear consent.</p>
+            <p>Consent builds the foundation of trust that sparks genuine connection.</p>
+
+            <h2>Curiosity &amp; open mindset</h2>
+            <p>We meet everyone with curiosity, kindness, and openness, regardless of gender identity, sexuality, ethnicity, age, ability, class, religion, or background. We work to remove barriers and support those who face them.</p>
+
+            <h2>Safer space</h2>
+            <p>We are committed to creating spaces that are safer for women, men, queer, trans and gender-diverse people, and others who experience marginalisation through our programming, staffing, partnerships and conduct standards.</p>
+            <p>A safer space does not mean harm is impossible. It means we actively work to prevent it, respond to it, and hold ourselves accountable when it occurs.</p>
+            <p>Being part of this space means learning, adjusting, respecting boundaries, and showing up responsibly for one another.</p>
+
+            <h2>Zero tolerance for violence and discrimination</h2>
+            <p>We do not tolerate:</p>
+            <ul>
+                <li>Any form of violence, including physical, sexual, psychological, economic or digital abuse</li>
+                <li>Harassment, bullying, intimidation, coercion or retaliation</li>
+                <li>Sexism, racism, homophobia, transphobia, xenophobia, tribalism, or any form of discrimination based on identity or status</li>
+                <li>Classism, ageism, ableism, body shaming or other forms of exclusion</li>
+                <li>Religious or cultural intolerance</li>
+                <li>Hate speech, symbols, behaviours or actions that exclude, marginalise or harm others</li>
+                <li>Abuse of power, authority or position</li>
+            </ul>
+            <p>Zahabu is a space for freedom, community and creativity – not oppression or disrespect.</p>
+            <p>Those who violate this code will be asked to leave the premises and may be barred from future events.</p>
+
+            <div class="hotline">
+                <span class="hotline-number">1519</span>
+                <p>Incidents of sexual violence should be reported immediately to the toll free hotline 1519.</p>
+            </div>
+
+            <h2>Respect boundaries</h2>
+            <ul>
+                <li><strong>No means no. Stop means stop. Silence is not consent.</strong></li>
+                <li>Consent must be clear, voluntary and ongoing.</li>
+                <li>We do not tolerate any form of abuse, violence, harassment including bullying, intimidation, unwanted physical contact, sexual advances, invasive behaviour, or any conduct that makes others feel unsafe or disrespected whether verbal, physical, or online.</li>
+                <li>You define your own boundaries. They must be respected.</li>
+                <li>If you experience or witness concerning behaviour, report it immediately to a member of the team. All reports will be taken seriously and handled with care.</li>
+            </ul>
+
+            <h2>Accessibility</h2>
+            <p>Please use shared spaces mindfully and respect the access needs of others.</p>
+            <p>Zahabu includes wheelchair-accessible entrances, areas and toilets, and staff are available to provide support where needed. If you encounter a barrier, please inform a team member so we can address it promptly and continue improving accessibility.</p>
+            <p>We recognise that we do not yet have dedicated systems in place to support visually/sonically impaired guests. We are actively exploring ways to strengthen accessibility in future editions.</p>
+
+            <h2>Substance safety</h2>
+            <p>Take care of yourself and others around alcohol and substances.</p>
+            <ul>
+                <li>Never leave your drink unattended</li>
+                <li>Don’t accept open drinks from people you don’t know or trust</li>
+                <li>Stop drinking if something tastes or smells off</li>
+            </ul>
+            <p>If you feel dizzy, confused, or unwell, seek help immediately. Report suspected drink tampering to the Team or Security — <strong>do not confront anyone yourself</strong>.</p>
+            <p>Substance-related harm will not be ignored or tolerated.</p>
+
+            <h2>Cultural and creative responsibility</h2>
+            <p>Our programming reflects our belief that music, art, culture, experimentation and technology can drive justice and change. We work with partners aligned with gender equity, environmental consciousness, and decolonial values. We commit to diverse lineups, fair representation, and inclusive dialogue on and off stage.</p>
+
+            <h2>Community care</h2>
+            <p>Zahabu is built by the community, for the community.</p>
+            <p>Look out for one another: offer water, support, or help if someone seems unwell or overwhelmed. If you see something, say something — to support, not to shame.</p>
+            <p>Kindly use the dust bins and ash trays provided — our plants are neither and are also part of the community.</p>
+
+            <p class="closing">Together, we create the space we all want to be in.</p>
+        </article>
+    </main>
+
+    <footer>
+        <img src="images/logo-wordmark.png" alt="Zahabu">
+        <span>© 2026 Zahabu Culture Garden</span>
+    </footer>
+
+</body>
+</html>
