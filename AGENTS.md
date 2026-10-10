@@ -28,6 +28,14 @@ Two things that share source files but are **not** deployed the same way — see
 - Tuesday alternates between Textures and Interlude: that row uses `.week-logos` (two logos with a divider; stacked on mobile) and a muted `.week-alt` second name. `interlude.png` was colour-keyed (green text on pink) from its own poster at ~720px, so it's sharper than the others.
 - **Updating:** add/remove/reorder `<li class="week-night">` rows. New logo files must also be added to `build.mjs`'s `paths`.
 
+## Code of conduct
+
+- **Landing page:** section `#conduct` in `index.html` (between Menus and Community), with the English and Kiswahili posters side by side. Clicking a poster opens it in the shared lightbox (`posterLightbox` provider), and the arrows switch languages. A button and a footer link go to `code-of-conduct.html`. There's deliberately no nav link: on phones the nav already hides "About" to fit.
+- **Full page:** `code-of-conduct.html` is self-contained and duplicates `index.html`'s font, colour tokens and background layers, so restyle both together. Its text comes from the staff `CoC.pdf`, with the "INTERNAL USE ONLY" banner and "Last update" date removed by request. Two layout choices differ from the PDF: the 1519 hotline line is a highlighted box, and the two non-"tolerate" items from that bullet list are plain paragraphs.
+- **Updating:** if the wording changes, edit `code-of-conduct.html` by hand. If the posters change, replace `images/conduct/poster-en.jpg`/`poster-sw.jpg` (re-encode around quality 80, ~1131×1600) and keep the `width`/`height` attributes in `index.html` in sync.
+- **Known issue:** the English poster image has typos ("communitities", "facilitites", and a missing comma in "transphobia or the like classism"). The fix needs a corrected image from the designer; don't try to patch the JPEG.
+- The source `code-of-conduct/` folder (PDF + WhatsApp originals) is deliberately left uncommitted because the PDF is marked internal. Don't `git add` it.
+
 ## Community photos
 
 - **Flow:** browser resizes/re-encodes each photo to JPEG (1800px full + 640px thumb) via canvas, which drops EXIF/GPS → `POST https://photos.zahabu.co.ke/api/photos` (multipart: `full_N`/`thumb_N`, `credit`, `consent=yes`, `cf-turnstile-response`) → Worker verifies Turnstile, origin, sizes, per-IP hourly limit, re-strips JPEG metadata server-side (`sanitizeJpeg`) and reads true dimensions from the SOF header → R2 (`full/<id>.jpg`, `thumb/<id>.jpg`) + D1 row with `status='pending'`.
@@ -79,6 +87,7 @@ Opening any HTML file directly (`file://`) does not provide database access — 
 
 ## Gotchas learned the hard way
 
+- **Headless Chrome screenshots of `index.html` come out blank on this Mac.** The fixed background layers don't render, and the full-viewport hero fills any tall window. To check visuals, use a real browser (Claude in Chrome against `python3 -m http.server`, which serves files exactly as GitHub Pages does). `code-of-conduct.html` screenshots fine headless.
 - **`preview.mjs` caches the build in memory.** It does a top-level `import worker from './dist/server/index.js'` once at startup. Running `node build.mjs` again does *not* hot-reload it — you must kill and restart `node preview.mjs` after every rebuild, or you'll be testing stale code.
 - **`drizzle/` is stale and not regenerated.** Its snapshot only has the original 4-column `work_dates`; running `npm run db:generate` would emit a migration re-adding columns that already exist live. Treat `migrations/` as the source of truth; `db/schema.ts` is kept in sync by hand for reference.
 - **Every static asset must be registered in `build.mjs`.** Adding a file to `assets/` or `images/` on disk does nothing by itself — it has to be added to the `paths` array in `build.mjs` (and its extension added to the `types` MIME map if it's a new file type), or the Worker will 404 on it.
