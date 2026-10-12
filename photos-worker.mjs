@@ -64,15 +64,21 @@ export function sanitizeJpeg(bytes) {
 // ---------- Spam protection ----------
 
 async function verifyTurnstile(token, ip, env) {
-  if (!env.TURNSTILE_SECRET || typeof token !== 'string' || !token || token.length > 2048) return false;
+  if (!env.TURNSTILE_SECRET || typeof token !== 'string' || !token || token.length > 2048) {
+    console.warn('Turnstile not attempted', JSON.stringify({hasSecret:!!env.TURNSTILE_SECRET, tokenType:typeof token, tokenLength:typeof token === 'string' ? token.length : null}));
+    return false;
+  }
   const body = new FormData();
   body.append('secret', env.TURNSTILE_SECRET);
   body.append('response', token);
   if (ip) body.append('remoteip', ip);
   try {
     const result = await (await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {method:'POST', body})).json();
+    // Error codes (e.g. invalid-input-secret, timeout-or-duplicate) show in `wrangler tail`; they hold nothing sensitive.
+    if (result.success !== true) console.warn('Turnstile rejected', JSON.stringify({codes:result['error-codes'], hostname:result.hostname}));
     return result.success === true;
-  } catch {
+  } catch (error) {
+    console.warn('Turnstile verify call failed', String(error));
     return false;
   }
 }
@@ -132,7 +138,9 @@ function toPublicPhoto(row, origin) {
 }
 
 async function listApproved(request, env, url) {
-  const {results} = await env.DB.prepare("SELECT id, credit, width, height FROM community_photos WHERE status = 'approved' ORDER BY reviewed_at DESC LIMIT 60").all();
+  // The landing page shows the newest 60; gallery.html asks for more with ?limit= (capped at 500).
+  const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get('limit'), 10) || 60, 1), 500);
+  const {results} = await env.DB.prepare("SELECT id, credit, width, height FROM community_photos WHERE status = 'approved' ORDER BY reviewed_at DESC LIMIT ?").bind(limit).all();
   return json({photos:results.map(row => toPublicPhoto(row, url.origin))}, 200, {...corsHeaders(request, env), 'Cache-Control':'public, max-age=60'});
 }
 

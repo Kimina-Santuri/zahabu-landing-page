@@ -77,6 +77,25 @@
             display:none !important;
         }
 
+        .icon{
+            display:inline-block;
+            width:1em;
+            height:1em;
+            vertical-align:-.14em;
+            fill:none;
+            stroke:currentColor;
+            stroke-width:1.6;
+            stroke-linecap:round;
+            stroke-linejoin:round;
+            pointer-events:none;
+        }
+
+        .marquee-track .icon{
+            width:.7em;
+            height:.7em;
+            vertical-align:.05em;
+        }
+
         :focus-visible{
             outline:2px solid var(--ink);
             outline-offset:3px;
@@ -670,6 +689,23 @@
             margin-top:12px;
         }
 
+        .community-all{
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            margin-top:22px;
+            padding:6px 0;
+            font-size:13px;
+            letter-spacing:.16em;
+            text-transform:uppercase;
+            border-bottom:1px solid var(--line);
+            transition:border-color .2s ease;
+        }
+
+        .community-all:hover{
+            border-bottom-color:var(--ink);
+        }
+
         /* ---------- SHARE DIALOG ---------- */
 
         .share-dialog{
@@ -1191,6 +1227,15 @@
 </head>
 
 <body>
+    <!-- Icons drawn as SVG: iOS swaps symbol characters like ✳ or ↗ for colour emoji. -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+        <symbol id="i-asterisk" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></symbol>
+        <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+        <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></symbol>
+        <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+        <symbol id="i-arrow-up-right" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+        <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+    </svg>
 
     <div class="bg-photo"></div>
     <div class="bg-overlay"></div>
@@ -1240,8 +1285,8 @@
 
             <div class="marquee" aria-hidden="true">
                 <div class="marquee-track">
-                    <span>Music</span><span>✳</span><span>Food</span><span>✳</span><span>Skate</span><span>✳</span><span>Broadcast</span><span>✳</span><span>Creative Practice</span><span>✳</span><span>Community</span><span>✳</span>
-                    <span>Music</span><span>✳</span><span>Food</span><span>✳</span><span>Skate</span><span>✳</span><span>Broadcast</span><span>✳</span><span>Creative Practice</span><span>✳</span><span>Community</span><span>✳</span>
+                    <span>Music</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span><span>Food</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span><span>Skate</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span><span>Broadcast</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span><span>Creative Practice</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span><span>Community</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span>
+                    <span>Music</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span><span>Food</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span><span>Skate</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span><span>Broadcast</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span><span>Creative Practice</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span><span>Community</span><span aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-asterisk"/></svg></span>
                 </div>
             </div>
         </section>
@@ -1318,8 +1363,8 @@
                     <img style="--ar:.71" src="assets/menu-pages/brunch-3.jpg" alt="Zahabu brunch menu, page 3" loading="lazy" draggable="false">
                 </button>
 
-                <button type="button" class="carousel-nav carousel-prev" id="prev" aria-label="Previous menu page">←</button>
-                <button type="button" class="carousel-nav carousel-next" id="next" aria-label="Next menu page">→</button>
+                <button type="button" class="carousel-nav carousel-prev" id="prev" aria-label="Previous menu page"><svg class="icon" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
+                <button type="button" class="carousel-nav carousel-next" id="next" aria-label="Next menu page"><svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></button>
             </div>
 
             <div class="carousel-meta">
@@ -1361,6 +1406,7 @@
             <div class="community-grid" id="communityGrid"></div>
             <p class="community-empty" id="communityEmpty" hidden>No photos yet — be the first to share a moment from the garden.</p>
             <button type="button" class="btn btn-ghost community-more" id="communityMore" hidden>Show more</button>
+            <a class="community-all" href="gallery.html" id="communityAll" hidden>View the full gallery <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></a>
         </section>
 
         <section class="visit" id="visit">
@@ -1378,7 +1424,7 @@
                         <span class="detail-label">Contact</span>
                         <p class="detail-value"><a href="mailto:info@zahabu.co.ke">info@zahabu.co.ke</a></p>
                     </div>
-                    <a class="btn btn-solid" href="https://www.google.com/maps/search/?api=1&amp;query=The+Mall+Westlands+Nairobi" target="_blank" rel="noopener">Get directions ↗</a>
+                    <a class="btn btn-solid" href="https://www.google.com/maps/search/?api=1&amp;query=The+Mall+Westlands+Nairobi" target="_blank" rel="noopener">Get directions <svg class="icon" aria-hidden="true"><use href="#i-arrow-up-right"/></svg></a>
                 </div>
             </div>
         </section>
@@ -1399,7 +1445,7 @@
                     <h3 id="shareTitle">Share your photos</h3>
                     <p>Up to 5 photos at a time. We strip location data from every photo, and nothing goes live until our team approves it.</p>
                 </div>
-                <button type="button" class="share-close" id="shareClose" aria-label="Close">✕</button>
+                <button type="button" class="share-close" id="shareClose" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
             </div>
 
             <label class="dropzone" id="dropzone">
@@ -1429,13 +1475,13 @@
     </dialog>
 
     <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Image viewer">
-        <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close">✕</button>
-        <button type="button" class="lightbox-prev" id="lightboxPrev" aria-label="Previous page">←</button>
+        <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+        <button type="button" class="lightbox-prev" id="lightboxPrev" aria-label="Previous page"><svg class="icon" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
         <figure class="lightbox-figure">
             <img id="lightboxImage" src="" alt="">
             <figcaption class="lightbox-caption" id="lightboxCaption" hidden></figcaption>
         </figure>
-        <button type="button" class="lightbox-next" id="lightboxNext" aria-label="Next page">→</button>
+        <button type="button" class="lightbox-next" id="lightboxNext" aria-label="Next page"><svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></button>
     </div>
 
     <script>
@@ -1506,7 +1552,7 @@
             const pages = Number(active.dataset.pages);
             caption.innerHTML =
                 `${active.dataset.label}${pages > 1 ? ` — page ${active.dataset.page} of ${pages}` : ""}` +
-                `<a href="${active.dataset.pdf}" target="_blank" rel="noopener">PDF ↓</a>`;
+                `<a href="${active.dataset.pdf}" target="_blank" rel="noopener">PDF <svg class="icon" aria-hidden="true"><use href="#i-arrow-down"/></svg></a>`;
 
             [...dotsEl.children].forEach((dot, i) => dot.classList.toggle("is-active", i === current));
         }
@@ -1750,6 +1796,7 @@
             communityShown = 0;
             showMorePhotos();
             communityEmpty.hidden = communityPhotos.length > 0;
+            document.getElementById("communityAll").hidden = communityPhotos.length === 0;
             community.hidden = false;
             document.getElementById("communityNav").hidden = false;
         }
@@ -1832,7 +1879,7 @@
                 img.alt = "";
                 const remove = document.createElement("button");
                 remove.type = "button";
-                remove.textContent = "✕";
+                remove.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>';
                 remove.setAttribute("aria-label", "Remove photo");
                 remove.addEventListener("click", () => {
                     URL.revokeObjectURL(item.previewUrl);
@@ -1872,10 +1919,17 @@
             shareSubmit.disabled = false;
         }
 
-        document.getElementById("shareOpen").addEventListener("click", () => {
+        function openShare(){
             shareDialog.showModal();
             loadTurnstile();
-        });
+        }
+        document.getElementById("shareOpen").addEventListener("click", openShare);
+        // gallery.html's "Share your photos" links to index.html#share.
+        if (COMMUNITY_ENABLED && location.hash === "#share") {
+            history.replaceState(null, "", "#community");
+            document.getElementById("community").scrollIntoView();
+            openShare();
+        }
         document.getElementById("shareClose").addEventListener("click", () => shareDialog.close());
         shareDialog.addEventListener("click", e => { if (e.target === shareDialog) shareDialog.close(); });
 
