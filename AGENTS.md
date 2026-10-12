@@ -108,6 +108,8 @@ Four things that share source files but are **not** deployed the same way. Read 
 - `images/events/*.png` — transparent ink-coloured logos for each weekly night (Weekly Programming section)
 - `images/logo-wordmark.png` — high-res (721×140) transparent ZAHABU wordmark used by `index.html`, the tracker, viewer, inventory and photos admin, tightly cropped (no padding). Extracted from the soft-masked logo image embedded in `assets/menu-food.pdf` page 2; if a sharper logo is ever needed, get an SVG from the designer rather than upscaling.
 - `images/logo.png` — older low-res (180×180, padded) logo, no longer used by any page but still bundled by `build.mjs`; `images/favicon.ico`
+- `favicon.ico` (repo root) and `images/favicon.ico`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png`: square icon of the "Z" cut from `logo-wordmark.png`, ink on white. Google Search needs a square icon of at least 48px and looks for `/favicon.ico`; the full wordmark is unreadable at that size.
+- `robots.txt`, `sitemap.xml`: for search engines. Add any new public page to the sitemap. `index.html` also has Open Graph tags and `EventVenue` JSON-LD in its `<head>`; keep the address there in sync with the Visit card.
 - `fonts/Futura-Regular.ttf` — the only font used site-wide
 - `CNAME` — GitHub Pages custom domain config (`zahabu.co.ke`); required for the domain to keep resolving, don't delete
 
