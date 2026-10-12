@@ -11,6 +11,8 @@ Two things that share source files but are **not** deployed the same way — see
 
 - **Community photos** — visitors submit photos from `index.html`'s "Moments at Zahabu" section; staff approve them at `photos.zahabu.co.ke/admin`; approved photos show in that section. Backend is `photos-worker.mjs`, a **separate** Worker (`zahabu-photos`, config `wrangler.photos.toml`) that shares the tracker's D1 database and stores images in R2. See "Community photos" below.
 
+- **Equipment inventory**: `inventory.html`/`inventory.js` + `inventory-worker.mjs`, a **separate** Worker (`zahabu-inventory`, config `wrangler.inventory.toml`) at `inventory.zahabu.co.ke`. It tracks gear with photos, condition, last tested/maintained dates and a per-item history. It shares the tracker's D1 database and keeps photos in its own R2 bucket. See "Equipment inventory" below.
+
 `worker.mjs` serves both (static assets from an embedded `ASSETS` map, plus the `/api/work-dates` REST endpoint for the tracker) **when deployed as a Cloudflare Worker**. In practice the public landing page is currently hosted on **GitHub Pages** instead (see below), which serves the raw files directly and never runs `worker.mjs` at all.
 
 ## Deployment reality
@@ -47,6 +49,16 @@ Two things that share source files but are **not** deployed the same way — see
 - **Deploying:** `npm run build`, then `npx wrangler deploy -c wrangler.photos.toml`. Never deploy the photos code via `wrangler.toml` — that's the live tracker Worker (`zahabu-tech-tracker`) with real crew data, and it has its own routes.
 - **One-time setup** (done in this order): enable R2 in the dashboard → `npx wrangler r2 bucket create zahabu-community-photos` → `npx wrangler d1 migrations apply zahabu-tracker --remote` (adds `community_photos` via `migrations/0003_community_photos.sql`; the live DB tracks applied migrations in `d1_migrations`) → create a Turnstile widget for `zahabu.co.ke` + `www.zahabu.co.ke`, put the site key in `index.html` and the secret in `npx wrangler secret put TURNSTILE_SECRET -c wrangler.photos.toml` → `npx wrangler secret put IP_SALT -c wrangler.photos.toml` (any long random string) → create a Zero Trust Access self-hosted app for `photos.zahabu.co.ke/admin` with a staff-email policy, copy its team domain and AUD tag into `wrangler.photos.toml` `[vars]` → deploy.
 
+## Equipment inventory
+
+- **Access model:** one Cloudflare Access app covers the whole `inventory.zahabu.co.ke` host, and its policy should let in everyone who may *view*. The Worker re-verifies the JWT (it reuses `accessEmail` exported from `photos-worker.mjs`) and fails closed without `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD`. Editing is allowed only for emails in the `EDITOR_EMAILS` **secret** (comma-separated; `@domain` entries allow a whole domain). It's a secret rather than a `[vars]` entry because this repo is public. Writes also need same-origin.
+- **Data:** `inventory_items` (one row per item; `quantity` covers identical units like 6× SM58), `inventory_photos` (R2 `full/<id>.jpg` + `thumb/<id>.jpg`, re-encoded in the browser and metadata-stripped server-side with `sanitizeJpeg`, same as community photos), and `inventory_log`. Logging a test/maintenance/repair moves `last_tested`/`last_maintained` forward (never back) and can change the condition, which writes its own `condition` log row. Removing a log entry doesn't roll those dates back; editors fix them in the item form.
+- **"Check due":** computed in the browser. An item is due when `check_every_days` is set and the newer of its last tested/maintained dates is older than that interval. Retired items are never due.
+- **Build:** `build.mjs` writes the page files to `dist/inventory-assets.js`, which `inventory-worker.mjs` imports. Wrangler's `main` is `inventory-worker.mjs` itself (unlike the other two Workers), so always `npm run build` before deploying.
+- **Preview:** `node preview.mjs` also serves the inventory on `http://localhost:5174/` as an editor; `INVENTORY_ROLE=viewer node preview.mjs` previews the read-only view.
+- **Live setup (done 2026-10-12):** Access app `inventory` uses the reusable "Zahabu staff (@zahabu.co.ke)" policy, and `EDITOR_EMAILS` is `@zahabu.co.ke`, so every staff address can view *and* edit. To make someone view-only later, replace the secret with an explicit list of editor emails.
+- **One-time setup** (already done; kept for reference): `npx wrangler r2 bucket create zahabu-inventory` → `npx wrangler d1 migrations apply zahabu-tracker --remote` (adds `migrations/0004_inventory.sql`) → create a Zero Trust Access self-hosted app for `inventory.zahabu.co.ke` with a policy for crew + viewers, then put its AUD tag in `wrangler.inventory.toml` → `npx wrangler secret put EDITOR_EMAILS -c wrangler.inventory.toml` → `npm run build && npx wrangler deploy -c wrangler.inventory.toml`.
+
 ## File map
 
 - `index.html` — landing page (markup + styles + scripts inline)
@@ -56,6 +68,8 @@ Two things that share source files but are **not** deployed the same way — see
 - `viewer.html`, `viewer.js` — read-only tracker view
 - `photos-worker.mjs` — community photos Worker (public submit/list/media API + Access-gated `/admin`); built into `dist/photos/index.js` with `PHOTO_ASSETS` (admin page files) prepended
 - `admin.html`, `admin.js` — staff photo review page, served at `photos.zahabu.co.ke/admin`
+- `inventory.html`, `inventory.js`: equipment inventory page (list, filters, detail, edit/log/photo forms, CSV export)
+- `inventory-worker.mjs`: equipment inventory Worker (Access-gated API + media + page); `wrangler.inventory.toml` is its config
 - `wrangler.photos.toml` — config for the `zahabu-photos` Worker (custom domain, D1, R2 bucket, Access vars; secrets listed in comments)
 - `local-bindings.mjs` — local stand-ins for D1 (`node:sqlite`) and R2 (files in `/private/tmp/zahabu-photos-preview`) used by `preview.mjs`/`verify.mjs`
 - `worker.mjs` — Cloudflare Worker: serves static assets from an embedded `ASSETS` map and handles `/api/work-dates` (GET/PUT/DELETE) against D1
@@ -80,7 +94,7 @@ npm install
 npm run db:generate   # regenerates drizzle/ from db/schema.ts
 npm run build         # runs build.mjs -> dist/server/index.js
 node verify.mjs        # checks persistence + validation
-node preview.mjs        # local preview server, http://localhost:5173 (site, /tracker.html, /admin photo review)
+node preview.mjs        # local preview server, http://localhost:5173 (site, /tracker.html, /admin photo review) + :5174 (inventory)
 ```
 
 Opening any HTML file directly (`file://`) does not provide database access — the tracker needs the Worker. Deploy through the hosting config (`.openai/hosting.json`) for the real thing.

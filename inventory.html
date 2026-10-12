@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Equipment · Zahabu</title>
+  <link rel="icon" href="/favicon.ico">
+  <style>
+    @font-face { font-family:Futura; src:url("/Futura-Regular.ttf") format("truetype"); font-display:swap; }
+    :root {
+      --ink:#141814; --muted:#5f6a63; --line:rgba(20,24,20,.16); --paper:#fff; --soft:#f3f5f2;
+      --working:#2f6b3c; --attention:#9a6a12; --repair:#2f5a8a; --broken:#a3312b; --retired:#6b6f6c;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:Futura, Arial, sans-serif; color:var(--ink); background:var(--soft); line-height:1.5; }
+    button, input, select, textarea { font:inherit; color:inherit; }
+    button { cursor:pointer; }
+    [hidden] { display:none !important; }
+    :focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
+
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:18px clamp(16px, 4vw, 40px); background:var(--paper); border-bottom:1px solid var(--line); }
+    header img { width:96px; display:block; }
+    .who { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); text-align:right; }
+
+    main { padding:28px clamp(16px, 4vw, 40px) 64px; max-width:1280px; margin:0 auto; }
+    .title-row { display:flex; align-items:end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+    h1 { font-weight:normal; font-size:clamp(26px, 4vw, 36px); text-transform:uppercase; letter-spacing:.02em; }
+    .title-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+    .btn { padding:9px 16px; border-radius:999px; border:1px solid var(--ink); background:var(--paper); font-size:12px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
+    .btn:hover { background:var(--soft); }
+    .btn.primary { background:var(--ink); color:#fff; }
+    .btn.primary:hover { background:#2d332d; }
+    .btn.danger { border-color:var(--broken); color:var(--broken); }
+    .btn.danger:hover { background:var(--broken); color:#fff; }
+    .btn:disabled { opacity:.5; cursor:wait; }
+    .link { border:0; background:none; text-decoration:underline; text-underline-offset:3px; font-size:13px; color:var(--muted); }
+
+    .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin:22px 0 18px; }
+    .stat { text-align:left; padding:12px 14px; background:var(--paper); border:1px solid var(--line); border-radius:12px; }
+    .stat strong { display:block; font-weight:normal; font-size:26px; line-height:1.1; }
+    .stat span { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+    .stat[aria-pressed="true"] { border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink); }
+
+    .filters { display:grid; grid-template-columns:2fr repeat(3, 1fr); gap:10px; margin-bottom:20px; }
+    .filters input, .filters select { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--paper); }
+
+    .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:16px; }
+    .card { text-align:left; background:var(--paper); border:1px solid var(--line); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; padding:0; transition:transform .15s ease, box-shadow .15s ease; }
+    .card:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(20,24,20,.08); }
+    .card .photo { position:relative; aspect-ratio:4 / 3; background:#e6e9e4; display:grid; place-items:center; color:var(--muted); font-size:12px; letter-spacing:.12em; text-transform:uppercase; }
+    .card .photo img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+    .card .body { padding:12px 14px 14px; display:grid; gap:4px; }
+    .card h2 { font-weight:normal; font-size:17px; line-height:1.25; }
+    .card .sub { font-size:13px; color:var(--muted); }
+    .card .when { font-size:12px; color:var(--muted); }
+    .card .qty { position:absolute; top:10px; right:10px; background:rgba(255,255,255,.92); color:var(--ink); padding:2px 8px; border-radius:999px; font-size:12px; letter-spacing:0; text-transform:none; }
+
+    .badges { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0; }
+    .badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; letter-spacing:.1em; text-transform:uppercase; padding:3px 9px; border-radius:999px; border:1px solid currentColor; }
+    .badge::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }
+    .badge.working { color:var(--working); } .badge.needs-attention { color:var(--attention); } .badge.in-repair { color:var(--repair); }
+    .badge.broken { color:var(--broken); } .badge.retired { color:var(--retired); } .badge.due { color:var(--attention); border-style:dashed; }
+
+    .empty, .message { padding:40px 20px; text-align:center; color:var(--muted); background:var(--paper); border:1px dashed var(--line); border-radius:14px; }
+    .message { padding:14px 18px; margin-bottom:16px; }
+    .message.error { color:var(--broken); border-color:var(--broken); }
+
+    dialog { border:0; border-radius:16px; padding:0; width:min(860px, calc(100% - 24px)); max-height:calc(100dvh - 24px); margin:auto; color:var(--ink); }
+    dialog.small { width:min(520px, calc(100% - 24px)); }
+    dialog::backdrop { background:rgba(20,24,20,.55); }
+    .dialog-head { position:sticky; top:0; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; background:var(--paper); border-bottom:1px solid var(--line); }
+    .dialog-head h2 { font-weight:normal; font-size:20px; line-height:1.25; }
+    .close { border:0; background:none; font-size:26px; line-height:1; padding:2px 8px; }
+    .dialog-body { padding:20px; display:grid; gap:20px; }
+
+    .gallery-main { position:relative; background:#e6e9e4; border-radius:12px; aspect-ratio:4 / 3; overflow:hidden; display:grid; place-items:center; color:var(--muted); }
+    .gallery-main img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+    .thumbs { display:flex; gap:8px; overflow-x:auto; padding:8px 0 2px; }
+    .thumb { position:relative; flex:0 0 72px; height:56px; border-radius:8px; overflow:hidden; border:2px solid transparent; padding:0; background:#e6e9e4; }
+    .thumb[aria-current="true"] { border-color:var(--ink); }
+    .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+    .thumb .star { position:absolute; left:3px; top:1px; font-size:12px; color:#fff; text-shadow:0 0 3px rgba(0,0,0,.7); }
+    .photo-tools { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+
+    .detail { display:grid; grid-template-columns:1.1fr 1fr; gap:24px; align-items:start; }
+    dl.facts { display:grid; grid-template-columns:auto 1fr; gap:6px 16px; font-size:14px; }
+    dl.facts dt { color:var(--muted); font-size:11px; letter-spacing:.12em; text-transform:uppercase; padding-top:3px; }
+    .notes { white-space:pre-wrap; font-size:14px; background:var(--soft); padding:12px 14px; border-radius:10px; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+    h3 { font-weight:normal; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+    .log { list-style:none; display:grid; gap:0; border-top:1px solid var(--line); }
+    .log li { display:grid; grid-template-columns:90px 1fr auto; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
+    .log time { color:var(--muted); font-size:13px; }
+    .log .kind { font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+    .log .by { color:var(--muted); font-size:12px; }
+
+    form.fields { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    form.fields .full { grid-column:1 / -1; }
+    label { display:grid; gap:5px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+    label input, label select, label textarea { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--paper); font-size:15px; letter-spacing:0; text-transform:none; color:var(--ink); }
+    label textarea { min-height:90px; resize:vertical; }
+    .form-foot { grid-column:1 / -1; display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+    .form-error { grid-column:1 / -1; color:var(--broken); font-size:14px; }
+
+    @media (max-width:720px) {
+      .filters { grid-template-columns:1fr 1fr; }
+      .filters input, .filters select:last-child { grid-column:1 / -1; }
+      .stats { display:flex; overflow-x:auto; gap:8px; margin:16px -16px 14px; padding:0 16px 4px; scrollbar-width:none; }
+      .stat { flex:0 0 auto; padding:8px 12px; }
+      .stat strong { font-size:20px; }
+      .grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+      .card .body { padding:10px 10px 12px; }
+      .card h2 { font-size:15px; }
+      .detail { grid-template-columns:1fr; }
+      form.fields { grid-template-columns:1fr; }
+      .log li { grid-template-columns:1fr auto; }
+      .log time { grid-column:1 / -1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="/logo.png" alt="Zahabu">
+    <span class="who" id="who"></span>
+  </header>
+  <main>
+    <div class="title-row">
+      <h1>Equipment</h1>
+      <div class="title-actions">
+        <button type="button" class="btn" id="exportCsv">Export CSV</button>
+        <button type="button" class="btn primary" id="addItem" hidden>Add item</button>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="filters">
+      <input type="search" id="search" placeholder="Search name, brand, serial, tag…" aria-label="Search">
+      <select id="filterCategory" aria-label="Category"><option value="">All categories</option></select>
+      <select id="filterLocation" aria-label="Location"><option value="">All locations</option></select>
+      <select id="filterCondition" aria-label="Condition"><option value="">Any condition</option></select>
+    </div>
+
+    <p class="message" id="message" hidden></p>
+    <div class="grid" id="grid"></div>
+    <p class="empty" id="empty" hidden></p>
+  </main>
+
+  <dialog id="detailDialog" aria-labelledby="detailTitle">
+    <div class="dialog-head">
+      <h2 id="detailTitle"></h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body" id="detailBody"></div>
+  </dialog>
+
+  <dialog id="itemDialog" aria-labelledby="itemTitle">
+    <div class="dialog-head">
+      <h2 id="itemTitle">Add item</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <form class="fields" id="itemForm">
+        <label class="full">Name<input name="name" required maxlength="120" placeholder="e.g. Shure SM58 microphone"></label>
+        <label>Category<input name="category" list="categoryList" maxlength="60" placeholder="Audio, Lighting…"></label>
+        <label>Location<input name="location" list="locationList" maxlength="80" placeholder="Store room, Main stage…"></label>
+        <label>Brand<input name="brand" maxlength="60"></label>
+        <label>Model<input name="model" maxlength="80"></label>
+        <label>Serial number<input name="serialNumber" maxlength="80"></label>
+        <label>Asset tag<input name="assetTag" maxlength="40"></label>
+        <label>Quantity<input name="quantity" type="number" min="0" max="9999" step="1" value="1" required></label>
+        <label>Condition<select name="condition"></select></label>
+        <label>Last tested<input name="lastTested" type="date"></label>
+        <label>Last maintained<input name="lastMaintained" type="date"></label>
+        <label class="full">Check every (days, optional)<input name="checkEveryDays" type="number" min="1" max="3650" step="1" placeholder="e.g. 90. Flags the item when a check is overdue"></label>
+        <label class="full">Notes<textarea name="notes" maxlength="2000" placeholder="Accessories, quirks, where the manual is…"></textarea></label>
+        <p class="form-error" id="itemError" hidden></p>
+        <div class="form-foot">
+          <button type="button" class="btn" data-close>Cancel</button>
+          <button type="submit" class="btn primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="logDialog" class="small" aria-labelledby="logTitle">
+    <div class="dialog-head">
+      <h2 id="logTitle">Log a check</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body">
+      <form class="fields" id="logForm">
+        <label>What was done<select name="kind">
+          <option value="tested">Tested</option>
+          <option value="maintained">Maintained / serviced</option>
+          <option value="repaired">Repaired</option>
+          <option value="note">Note only</option>
+        </select></label>
+        <label>Date<input name="date" type="date" required></label>
+        <label class="full">Condition now<select name="condition"></select></label>
+        <label class="full">Notes<textarea name="note" maxlength="1000" placeholder="What you checked, what you found, parts replaced…"></textarea></label>
+        <p class="form-error" id="logError" hidden></p>
+        <div class="form-foot">
+          <button type="button" class="btn" data-close>Cancel</button>
+          <button type="submit" class="btn primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <datalist id="categoryList"></datalist>
+  <datalist id="locationList"></datalist>
+  <input type="file" id="photoInput" accept="image/*" multiple hidden>
+  <script src="/inventory.js" defer></script>
+</body>
+</html>

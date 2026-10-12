@@ -156,3 +156,69 @@ assert.equal((await photosWorker.fetch(new Request(photosOrigin+'/admin'),access
 
 globalThis.fetch = realFetch;
 console.log('Verified community photos: metadata stripping, consent, spam check, origin, size limits, moderation, Access fail-closed, publish/unpublish/delete, rate limiting, and Access token checks.');
+
+// ---------- Equipment inventory ----------
+
+const { default: inventoryWorker, canEdit } = await import('./inventory-worker.mjs');
+db.exec(await readFile('migrations/0004_inventory.sql','utf8'));
+const media = new Map();
+const inventoryEnv = {
+  DB:localD1(db),
+  MEDIA:{
+    async put(key,value){ media.set(key,new Uint8Array(value)); },
+    async get(key){ const bytes=media.get(key); return bytes ? {body:new Blob([bytes]).stream(),size:bytes.length} : null; },
+    async delete(keys){ for (const key of [keys].flat()) media.delete(key); },
+  },
+  LOCAL_DEV:true,
+  EDITOR_EMAILS:'preview@localhost',
+};
+const viewerEnv = {...inventoryEnv, EDITOR_EMAILS:'@zahabu.co.ke'};
+const invOrigin = 'https://inventory.zahabu.co.ke';
+const inv = (path, {method='GET', body, env=inventoryEnv, origin=invOrigin}={}) => inventoryWorker.fetch(new Request(invOrigin+path,{method,headers:{origin,...(body && !(body instanceof FormData)?{'content-type':'application/json'}:{})},...(body?{body:body instanceof FormData?body:JSON.stringify(body)}:{})}),env);
+
+assert.ok(canEdit('Tech@Zahabu.co.ke',{EDITOR_EMAILS:'@zahabu.co.ke'}));
+assert.ok(!canEdit('tech@notzahabu.co.ke.evil.com',{EDITOR_EMAILS:'@zahabu.co.ke'}));
+assert.ok(!canEdit('staff',{EDITOR_EMAILS:'staff'}), 'service tokens without an email never edit');
+assert.equal((await inventoryWorker.fetch(new Request(invOrigin+'/api/items'),{...inventoryEnv, LOCAL_DEV:false})).status, 403, 'inventory must fail closed without Access config');
+
+const mixer = {name:'Yamaha MG16XU mixer', category:'Audio', brand:'Yamaha', model:'MG16XU', serialNumber:'ABC123', quantity:1, location:'Store room', condition:'working', lastTested:'2026-09-01', checkEveryDays:30};
+assert.equal((await inv('/api/items',{method:'POST',body:{...mixer,name:''}})).status, 400);
+assert.equal((await inv('/api/items',{method:'POST',body:{...mixer,condition:'fine'}})).status, 400);
+assert.equal((await inv('/api/items',{method:'POST',body:{...mixer,lastTested:'2026-02-30'}})).status, 400);
+assert.equal((await inv('/api/items',{method:'POST',body:{...mixer,quantity:1.5}})).status, 400);
+assert.equal((await inv('/api/items',{method:'POST',body:mixer,origin:'https://elsewhere.example'})).status, 403);
+assert.equal((await inv('/api/items',{method:'POST',body:mixer,env:viewerEnv})).status, 403, 'viewers cannot add');
+const created = await inv('/api/items',{method:'POST',body:mixer});
+assert.equal(created.status, 201);
+const itemId = (await created.json()).item.id;
+assert.equal((await (await inv('/api/items',{env:viewerEnv})).json()).items.length, 1, 'viewers can list');
+assert.equal((await (await inv('/api/me',{env:viewerEnv})).json()).canEdit, false);
+
+assert.equal((await inv(`/api/items/${itemId}`,{method:'PUT',body:{...mixer,condition:'needs-attention'}})).status, 200);
+const logged = await inv(`/api/items/${itemId}/log`,{method:'POST',body:{kind:'tested',date:'2026-10-01',note:'Channel 3 crackles',condition:'in-repair'}});
+assert.equal(logged.status, 200);
+const detail = await logged.json();
+assert.equal(detail.item.lastTested, '2026-10-01');
+assert.equal(detail.item.condition, 'in-repair');
+assert.deepEqual(detail.log.map(entry => entry.kind).sort(), ['condition','condition','created','tested']);
+await inv(`/api/items/${itemId}/log`,{method:'POST',body:{kind:'tested',date:'2026-09-15'}});
+assert.equal((await (await inv(`/api/items/${itemId}`)).json()).item.lastTested, '2026-10-01', 'older checks never move the date back');
+assert.equal((await inv(`/api/items/${itemId}/log`,{method:'POST',body:{kind:'tested',date:'2999-01-01'}})).status, 400);
+assert.equal((await inv(`/api/items/${itemId}/log`,{method:'POST',body:{kind:'tested'},env:viewerEnv})).status, 403);
+
+const photoForm = (full=jpeg(1800,1200), thumb=jpeg(640,427)) => { const f=new FormData(); f.append('full',new File([full],'f.jpg')); f.append('thumb',new File([thumb],'t.jpg')); return f; };
+assert.equal((await inv(`/api/items/${itemId}/photos`,{method:'POST',body:photoForm(new TextEncoder().encode('nope'))})).status, 400);
+const firstPhoto = (await (await inv(`/api/items/${itemId}/photos`,{method:'POST',body:photoForm()})).json()).photo.id;
+const secondPhoto = (await (await inv(`/api/items/${itemId}/photos`,{method:'POST',body:photoForm()})).json()).photo.id;
+for (const bytes of media.values()) assert.ok(!hasText(bytes, 'GPS'));
+assert.equal((await (await inv(`/api/items/${itemId}`)).json()).item.coverPhotoId, firstPhoto, 'first photo becomes the cover');
+assert.equal((await inv(`/media/thumb/${firstPhoto}.jpg`,{env:viewerEnv})).status, 200);
+assert.equal((await inv(`/api/items/${itemId}/photos/${firstPhoto}`,{method:'DELETE'})).status, 200);
+assert.equal((await (await inv(`/api/items/${itemId}`)).json()).item.coverPhotoId, secondPhoto, 'cover moves on when deleted');
+assert.equal(media.size, 2);
+
+assert.equal((await inv(`/api/items/${itemId}`,{method:'DELETE'})).status, 200);
+assert.equal(media.size, 0);
+assert.equal((await (await inv('/api/items')).json()).items.length, 0);
+for (const path of ['/','/inventory.js','/logo.png']) assert.equal((await inv(path)).status, 200);
+console.log('Verified equipment inventory: Access fail-closed, editor vs viewer roles, origin check, validation, check logging, photos and cover, delete cleanup.');

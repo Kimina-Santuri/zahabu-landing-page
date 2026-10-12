@@ -91,7 +91,7 @@ function base64UrlToBytes(value) {
 
 let accessKeys = {fetchedAt:0, keys:[]};
 
-async function accessEmail(request, env) {
+export async function accessEmail(request, env) {
   if (env.LOCAL_DEV) return 'preview@localhost';
   if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) return null;
   const token = request.headers.get('cf-access-jwt-assertion');
