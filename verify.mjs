@@ -18,7 +18,10 @@ assert.deepEqual({...saved[0],createdAt:undefined,updatedAt:undefined}, {...reco
 assert.ok(saved[0].createdAt && saved[0].updatedAt);
 assert.equal((await call('PUT',{...record,id:'test-2'})).status,409);
 assert.equal((await call('PUT',{...record,supports:['Lead','Support B']})).status,400);
-assert.equal((await call('PUT',{...record,supports:['Support A']})).status,400);
+assert.equal((await call('PUT',{...record,lead:'',supports:[]})).status,400,'needs at least one person');
+assert.equal((await call('PUT',{...record,lead:'Solo Lead',supports:[]})).status,200,'a lead on their own is fine');
+assert.equal((await call('PUT',{...record,lead:'',supports:['Solo Support']})).status,200,'one support with no lead is fine');
+assert.equal((await call('PUT',{...record,lead:'',supports:['Same','same']})).status,400,'still one person per role');
 assert.equal((await call('PUT',{...record,date:'2026-02-30'})).status,400);
 assert.equal((await call('PUT',{...record,lead:'Updated lead'})).status,200);
 assert.equal((await (await call('GET')).json())[0].lead,'Updated lead');
@@ -29,7 +32,7 @@ const publicWrite = new Request(publicOrigin+'/api/work-dates',{method:'PUT',hea
 assert.equal((await worker.fetch(publicWrite,env)).status,403);
 assert.equal((await call('DELETE',null,'/api/work-dates?id=test-1')).status,200);
 assert.deepEqual(await (await call('GET')).json(),[]);
-for (const path of ['/','/tracker.html','/tracker.js','/tracker.css','/viewer.html','/viewer.js','/images/logo.png','/fonts/Futura-Regular.ttf']) assert.equal((await call('GET',null,path)).status,200);
+for (const path of ['/','/tracker.html','/tracker.js','/tracker.css','/tracker-calendar.js','/viewer.html','/viewer.js','/images/logo.png','/fonts/Futura-Regular.ttf']) assert.equal((await call('GET',null,path)).status,200);
 console.log('Verified save, reload, edit, delete, date uniqueness, crew validation, request origin, and page assets.');
 
 // ---------- Community photos ----------

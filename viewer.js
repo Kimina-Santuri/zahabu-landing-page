@@ -20,16 +20,24 @@ function render() {
   document.querySelector('#export-csv').disabled = !records.length;
   if (!records.length) { const empty = document.createElement('div'); empty.className = 'empty'; const title = document.createElement('h3'); title.textContent = 'No work dates yet'; const hint = document.createElement('p'); hint.textContent = 'Entries will appear here when the crew tracker is updated.'; empty.append(title, hint); container.append(empty); return; }
   for (const record of [...records].sort((a,b) => b.date.localeCompare(a.date))) {
-    const article = document.createElement('article'); article.className = 'record';
+    const article = document.createElement('article'); article.className = 'record'; article.dataset.id = record.id;
     const top = document.createElement('div'); top.className = 'record-top'; const date = document.createElement('time'); date.dateTime = record.date; date.textContent = displayDate(record.date); top.append(date);
     const details = document.createElement('div'); details.className = 'record-details'; const event = document.createElement('strong'); event.textContent = record.eventName || 'Unnamed booking'; const typeStatus = document.createElement('span'); typeStatus.textContent = `${record.workType || 'Event'} · ${record.status || 'Completed'}`; details.append(event, typeStatus);
     const list = document.createElement('dl'); list.className = 'assignments';
-    for (const [title, names] of [['Lead tech', [record.lead]], ['Support staff', record.supports]]) { const group = document.createElement('div'); const term = document.createElement('dt'); term.textContent = title; const detail = document.createElement('dd'); names.forEach(name => { const span = document.createElement('span'); span.textContent = name; if (title === 'Support staff') span.className = 'support-name'; detail.append(span); }); group.append(term, detail); list.append(group); }
+    for (const [title, names] of [['Lead tech', record.lead ? [record.lead] : []], ['Support staff', record.supports]]) { if (!names.length) continue; const group = document.createElement('div'); const term = document.createElement('dt'); term.textContent = title; const detail = document.createElement('dd'); names.forEach(name => { const span = document.createElement('span'); span.textContent = name; if (title === 'Support staff') span.className = 'support-name'; detail.append(span); }); group.append(term, detail); list.append(group); }
     article.append(top, details, list);
     if (record.notes || record.approvedBy || record.createdAt || record.updatedAt) { const footer = document.createElement('div'); footer.className = 'record-footer'; if (record.notes) { const note = document.createElement('span'); note.textContent = record.notes; footer.append(note); } if (record.approvedBy) { const approved = document.createElement('span'); approved.textContent = `Approved by ${record.approvedBy}`; footer.append(approved); } if (record.createdAt) { const stamp = document.createElement('small'); stamp.textContent = `Created ${new Date(record.createdAt).toLocaleString()}`; footer.append(stamp); } if (record.updatedAt && record.updatedAt !== record.createdAt) { const stamp = document.createElement('small'); stamp.textContent = `Updated ${new Date(record.updatedAt).toLocaleString()}`; footer.append(stamp); } article.append(footer); }
     container.append(article);
   }
 }
 
+// Picking an entry in the calendar jumps to it in the list.
+const calendar = TrackerCalendar.mount({onSelect: record => {
+  calendar.show('list');
+  const article = [...document.querySelectorAll('#records .record')].find(node => node.dataset.id === record.id);
+  if (!article) return;
+  article.scrollIntoView({behavior:'smooth', block:'center'});
+  article.classList.remove('is-highlighted'); void article.offsetWidth; article.classList.add('is-highlighted');
+}});
 document.querySelector('#export-csv').onclick = exportCsv;
-fetch('/api/work-dates', {headers:{'Accept':'application/json'}}).then(response => { if (!response.ok) throw new Error(); return response.json(); }).then(result => { records = result; render(); }).catch(() => { document.querySelector('#records').textContent = 'Work history could not be loaded.'; });
+fetch('/api/work-dates', {headers:{'Accept':'application/json'}}).then(response => { if (!response.ok) throw new Error(); return response.json(); }).then(result => { records = result; render(); calendar.render(records); }).catch(() => { document.querySelector('#records').textContent = 'Work history could not be loaded.'; });

@@ -4,8 +4,11 @@ function validRecord(value) {
   if (typeof value.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.date)) return false;
   const parsed = new Date(`${value.date}T12:00:00Z`);
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0,10) !== value.date) return false;
-  if (!Array.isArray(value.supports) || value.supports.length < 2 || value.supports.length > 50) return false;
-  const names = [value.lead, ...value.supports];
+  // A crew can be anyone from one person up: the lead is optional and so are supports, but not both.
+  if (typeof value.lead !== 'string' || value.lead.length > 100) return false;
+  if (!Array.isArray(value.supports) || value.supports.length > 50) return false;
+  const names = [...(value.lead.trim() ? [value.lead] : []), ...value.supports];
+  if (!names.length) return false;
   const types = ['Setup','Soundcheck','Event','Breakdown','Maintenance','Rehearsal','Other'];
   const statuses = ['Planned','Completed','Cancelled','Pending'];
   return names.every(name => typeof name === 'string' && name.trim().length > 0 && name.length <= 100) && new Set(names.map(name => name.trim().toLocaleLowerCase().replace(/\s+/g,' '))).size === names.length

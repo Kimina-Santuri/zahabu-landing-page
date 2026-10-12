@@ -21,7 +21,6 @@ function addSupport(value = '') {
   const input = document.createElement('input');
   input.value = value;
   input.maxLength = 100;
-  input.required = true;
   input.placeholder = 'Full name';
   input.setAttribute('list', 'crew-names');
   field.append(label, input);
@@ -44,7 +43,7 @@ function labelSupports() {
     label.htmlFor = input.id;
     label.textContent = `Support ${i + 1}`;
     const remove = row.querySelector('button');
-    remove.hidden = supportFields.children.length <= 2;
+    remove.hidden = supportFields.children.length <= 1;
     remove.setAttribute('aria-label', `Remove support ${i + 1}`);
   });
 }
@@ -54,7 +53,7 @@ function resetForm() {
   const today = new Date();
   document.querySelector('#work-date').value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   supportFields.replaceChildren();
-  addSupport(); addSupport();
+  addSupport();
   document.querySelector('#event-name').value = '';
   document.querySelector('#work-type').value = 'Event';
   document.querySelector('#status').value = 'Completed';
@@ -111,21 +110,7 @@ function render() {
     const actions = document.createElement('div'); actions.className = 'record-actions';
     const edit = document.createElement('button'); edit.textContent = 'Edit'; edit.disabled = busy;
     edit.setAttribute('aria-label', `Edit ${displayDate(record.date)}`);
-    edit.onclick = () => {
-      editingId = record.id;
-      document.querySelector('#work-date').value = record.date;
-      document.querySelector('#event-name').value = record.eventName || '';
-      document.querySelector('#work-type').value = record.workType || 'Event';
-      document.querySelector('#status').value = record.status || 'Completed';
-      document.querySelector('#lead').value = record.lead;
-      document.querySelector('#notes').value = record.notes || '';
-      document.querySelector('#approved-by').value = record.approvedBy || '';
-      supportFields.replaceChildren(); record.supports.forEach(addSupport);
-      document.querySelector('#form-title').textContent = 'Edit work date';
-      document.querySelector('#save-button').textContent = 'Save changes';
-      document.querySelector('#cancel-edit').hidden = false;
-      say(''); document.querySelector('#work-date').focus();
-    };
+    edit.onclick = () => startEdit(record);
     const remove = document.createElement('button'); remove.textContent = 'Delete'; remove.className = 'delete'; remove.disabled = busy;
     remove.setAttribute('aria-label', `Delete ${displayDate(record.date)}`);
     remove.onclick = async () => {
@@ -145,7 +130,8 @@ function render() {
     const typeStatus = document.createElement('span'); typeStatus.textContent = `${record.workType || 'Event'} · ${record.status || 'Completed'}`;
     details.append(event, typeStatus);
     const list = document.createElement('dl'); list.className = 'assignments';
-    for (const [title, names] of [['Lead tech', [record.lead]], ['Support staff', record.supports]]) {
+    for (const [title, names] of [['Lead tech', record.lead ? [record.lead] : []], ['Support staff', record.supports]]) {
+      if (!names.length) continue;
       const group = document.createElement('div');
       const term = document.createElement('dt'); term.textContent = title;
       const detail = document.createElement('dd');
@@ -163,9 +149,45 @@ function render() {
     }
     container.append(article);
   }
-  const names = [...new Set(records.flatMap(record => [record.lead,...record.supports]))].sort();
+  const names = [...new Set(records.flatMap(record => [record.lead,...record.supports]).filter(Boolean))].sort();
   document.querySelector('#crew-names').replaceChildren(...names.map(name => { const option = document.createElement('option'); option.value = name; return option; }));
+  calendar.render(records);
 }
+
+function startEdit(record) {
+  if (busy) return;
+  editingId = record.id;
+  document.querySelector('#work-date').value = record.date;
+  document.querySelector('#event-name').value = record.eventName || '';
+  document.querySelector('#work-type').value = record.workType || 'Event';
+  document.querySelector('#status').value = record.status || 'Completed';
+  document.querySelector('#lead').value = record.lead;
+  document.querySelector('#notes').value = record.notes || '';
+  document.querySelector('#approved-by').value = record.approvedBy || '';
+  supportFields.replaceChildren(); record.supports.forEach(addSupport);
+  if (!record.supports.length) addSupport();
+  document.querySelector('#form-title').textContent = 'Edit work date';
+  document.querySelector('#save-button').textContent = 'Save changes';
+  document.querySelector('#cancel-edit').hidden = false;
+  say(''); focusForm('#work-date');
+}
+
+// Brings the form into view (it sits above the history on phones) without jumping on wide screens.
+function focusForm(selector) {
+  document.querySelector('.entry-panel').scrollIntoView({behavior:'smooth', block:'nearest'});
+  document.querySelector(selector).focus({preventScroll:true});
+}
+
+const calendar = TrackerCalendar.mount({
+  onSelect: startEdit,
+  onPickDate: date => {
+    if (busy) return;
+    if (editingId) resetForm();
+    document.querySelector('#work-date').value = date;
+    say('');
+    focusForm('#event-name');
+  },
+});
 
 function setBusy(value) {
   busy = value;
@@ -183,12 +205,12 @@ form.addEventListener('submit', async event => {
     workType: document.querySelector('#work-type').value,
     status: document.querySelector('#status').value,
     lead: document.querySelector('#lead').value.trim(),
-    supports: [...supportFields.querySelectorAll('input')].map(input => input.value.trim()),
+    supports: [...supportFields.querySelectorAll('input')].map(input => input.value.trim()).filter(Boolean),
     notes: document.querySelector('#notes').value.trim(),
     approvedBy: document.querySelector('#approved-by').value.trim()
   };
-  const names = [record.lead, ...record.supports];
-  if (!record.lead || record.supports.length < 2 || record.supports.some(name => !name)) return say('Enter a lead tech and at least two support staff.', true);
+  const names = [...(record.lead ? [record.lead] : []), ...record.supports];
+  if (!names.length) return say('Add at least one person: a lead tech or a support.', true);
   if (new Set(names.map(name => name.toLocaleLowerCase().replace(/\s+/g,' '))).size !== names.length) return say('Assign a different person to each role.', true);
   if (records.some(item => item.date === record.date && item.id !== record.id)) return say('This date already has a crew. Edit that entry to make changes.', true);
   setBusy(true);

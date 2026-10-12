@@ -6,6 +6,7 @@
   <title>Tech tracker · Zahabu Culture Garden</title>
   <link rel="icon" href="images/favicon.ico">
   <link rel="stylesheet" href="tracker.css">
+  <script src="tracker-calendar.js" defer></script>
   <script src="tracker.js" defer></script>
 </head>
 <body>
@@ -21,8 +22,8 @@
           <label for="work-date">Work date</label><input id="work-date" name="date" type="date" required>
           <label for="event-name">Event / booking name</label><input id="event-name" name="eventName" placeholder="Name of event or booking" maxlength="160">
           <div class="field-grid"><div><label for="work-type">Work type</label><select id="work-type" name="workType"><option>Setup</option><option>Soundcheck</option><option selected>Event</option><option>Breakdown</option><option>Maintenance</option><option>Rehearsal</option><option>Other</option></select></div><div><label for="status">Status</label><select id="status" name="status"><option>Planned</option><option selected>Completed</option><option>Cancelled</option><option>Pending</option></select></div></div>
-          <label for="lead">Lead tech</label><input id="lead" name="lead" placeholder="Full name" maxlength="100" list="crew-names" required>
-          <fieldset><legend>Support staff</legend><p class="field-help">At least two different people.</p><div id="supports"></div><button type="button" class="text-button" id="add-support">+ Add another support</button></fieldset>
+          <label for="lead">Lead tech</label><input id="lead" name="lead" placeholder="Full name" maxlength="100" list="crew-names">
+          <fieldset><legend>Support staff</legend><p class="field-help">Optional. One person is enough: a lead tech or a support.</p><div id="supports"></div><button type="button" class="text-button" id="add-support">+ Add another support</button></fieldset>
           <label for="notes">Notes</label><textarea id="notes" name="notes" rows="4" maxlength="2000" placeholder="Handover details, issues, or follow-up"></textarea>
           <label for="approved-by">Approved by</label><input id="approved-by" name="approvedBy" placeholder="Name of approver" maxlength="100" list="crew-names">
           <p id="form-message" role="status" aria-live="polite"></p>
@@ -31,7 +32,8 @@
         <datalist id="crew-names"></datalist>
       </section>
       <section class="records-panel" aria-labelledby="records-title">
-        <div class="section-heading"><h2 id="records-title">Work history</h2><div class="section-tools"><span class="count" id="record-count">0 dates</span><button type="button" id="export-csv" class="export-button" disabled>Download CSV</button></div></div>
+        <div class="section-heading"><h2 id="records-title">Work history</h2><div class="section-tools"><div class="view-toggle" role="group" aria-label="History view"><button type="button" data-view="list" aria-pressed="true">List</button><button type="button" data-view="calendar" aria-pressed="false">Calendar</button></div><span class="count" id="record-count">0 dates</span><button type="button" id="export-csv" class="export-button" disabled>Download CSV</button></div></div>
+        <div id="calendar" class="calendar" hidden></div>
         <div id="records"></div>
       </section>
     </div>
