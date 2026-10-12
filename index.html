@@ -1680,8 +1680,8 @@
         const PHOTO_API = isLocal ? (location.port === "5173" ? "" : "http://localhost:5173") : "https://photos.zahabu.co.ke";
         // Cloudflare Turnstile site key for zahabu.co.ke; locally, Cloudflare's always-pass test key.
         const TURNSTILE_SITE_KEY = isLocal ? "1x00000000000000000000AA" : "0x4AAAAAAFHmoNtXVh4PIyD2";
-        // Off until TURNSTILE_SECRET is set on the zahabu-photos Worker; while false the Community section and nav link stay hidden.
-        const COMMUNITY_ENABLED = false;
+        // Needs TURNSTILE_SECRET on the zahabu-photos Worker, or every upload fails the spam check. False hides the Community section and nav link.
+        const COMMUNITY_ENABLED = true;
         const MAX_SHARE = 5;
         const PAGE_SIZE = 12;
 
