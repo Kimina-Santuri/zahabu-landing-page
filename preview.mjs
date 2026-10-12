@@ -13,6 +13,11 @@ for(const file of (await readdir('drizzle')).filter(name=>name.endsWith('.sql'))
     db.prepare('INSERT INTO _local_migrations VALUES (?)').run(file);
   }
 }
+// drizzle/ only has the original work_dates columns; 0002 adds the rest (ALTER TABLE, so apply it once).
+if (!db.prepare('SELECT name FROM _local_migrations WHERE name = ?').get('0002_entry_details.sql')) {
+  db.exec(await readFile('migrations/0002_entry_details.sql','utf8'));
+  db.prepare('INSERT INTO _local_migrations VALUES (?)').run('0002_entry_details.sql');
+}
 db.exec(await readFile('migrations/0003_community_photos.sql','utf8'));
 db.exec(await readFile('migrations/0004_inventory.sql','utf8'));
 const env={DB:localD1(db)};

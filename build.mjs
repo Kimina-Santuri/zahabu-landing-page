@@ -13,7 +13,7 @@ const photoAssets = {};
 for (const [route, path] of Object.entries(photoAssetSources)) photoAssets[route] = {data:(await readFile(path)).toString('base64'),type:types[path.split('.').pop()]};
 await mkdir('dist/photos',{recursive:true});
 await writeFile('dist/photos/index.js',`const PHOTO_ASSETS = ${JSON.stringify(photoAssets)};\n${await readFile('photos-worker.mjs','utf8')}`);
-const inventoryAssetSources = {'/index.html':'inventory.html','/inventory.js':'inventory.js','/logo.png':'images/logo-wordmark.png','/Futura-Regular.ttf':'fonts/Futura-Regular.ttf','/favicon.ico':'images/favicon.ico'};
+const inventoryAssetSources = {'/index.html':'inventory.html','/inventory.js':'inventory.js','/logo.png':'images/logo-wordmark.png','/Futura-Regular.ttf':'fonts/Futura-Regular.ttf','/favicon.ico':'images/favicon.ico','/garden-background.jpg':'assets/garden-background.jpg'};
 const inventoryAssets = {};
 for (const [route, path] of Object.entries(inventoryAssetSources)) inventoryAssets[route] = {data:(await readFile(path)).toString('base64'),type:types[path.split('.').pop()]};
 await writeFile('dist/inventory-assets.js',`export default ${JSON.stringify(inventoryAssets)};\n`);
