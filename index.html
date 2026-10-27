@@ -1030,9 +1030,26 @@
             font-size:16px;
         }
 
+        /* Grid items default to min-width:auto, so a wide native control could push its column out. */
+        .contact-form .field{
+            min-width:0;
+        }
+
+        /* iOS Safari gives date inputs an intrinsic width that ignores width:100% and centres the value;
+           dropping the native appearance makes it size like the other fields. */
         .contact-form input[type="date"]{
+            -webkit-appearance:none;
+            appearance:none;
+            display:block;
+            min-width:0;
+            max-width:100%;
             min-height:50px;
             color:var(--ink);
+            text-align:left;
+        }
+
+        .contact-form input[type="date"]::-webkit-date-and-time-value{
+            text-align:left;
         }
 
         .contact-form textarea{
