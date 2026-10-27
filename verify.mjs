@@ -136,7 +136,8 @@ assert.equal((await upload(submission())).status, 429, 'per-IP hourly limit');
 db.exec(await readFile('migrations/0005_contact_messages.sql','utf8'));
 const sent = [];
 const contactEnv = {...photoEnv, CONTACT_FROM:'website@mail.zahabu.co.ke', CONTACT_EMAIL:{async send(message){ if (message.subject.includes('FAIL')) throw Object.assign(new Error('nope'),{code:'E_DELIVERY_FAILED'}); sent.push(message); }}};
-const longMessage = Array.from({length:100},(_, i)=>`word${i}`).join(' ');
+const words = n => Array.from({length:n},(_, i)=>`word${i}`).join(' ');
+const longMessage = words(100);
 const contactForm = (overrides={}) => {
   const form = new FormData();
   const values = {name:'Achieng O.', email:'achieng@example.com', phone:'+254 700 000000', reason:'Booking / private event', event_date:'2026-12-12', message:longMessage, 'cf-turnstile-response':'good-token', ...overrides};
@@ -150,7 +151,8 @@ assert.deepEqual(await (await photosWorker.fetch(new Request(photosOrigin+'/api/
 assert.deepEqual(await (await photosWorker.fetch(new Request(photosOrigin+'/api/contact'),contactEnv)).json(), {ready:true});
 assert.equal((await contact(contactForm(), photoEnv)).status, 503, 'no email binding');
 assert.equal((await contact(contactForm(), contactEnv, 'https://elsewhere.example')).status, 403);
-assert.equal((await contact(contactForm({message:longMessage.split(' ').slice(0,99).join(' ')}))).status, 400, 'needs 100 words');
+assert.equal((await contact(contactForm({message:words(24)}))).status, 400, 'needs 25 words');
+assert.equal((await contact(contactForm({message:words(101)}))).status, 400, 'at most 100 words');
 assert.equal((await contact(contactForm({email:'not-an-email'}))).status, 400);
 assert.equal((await contact(contactForm({name:''}))).status, 400);
 assert.equal((await contact(contactForm({reason:'Something else'}))).status, 400);
@@ -175,9 +177,9 @@ assert.equal((await contact(contactForm({name:'FAIL test'}), contactEnv, 'https:
 const failedRow = contactRows().find(row => row.name === 'FAIL test');
 assert.ok(failedRow && !failedRow.emailed_at && failedRow.email_error === 'E_DELIVERY_FAILED', 'kept in D1 when the email fails');
 
-for (let i = 0; i < 4; i++) assert.equal((await contact(contactForm())).status, 201);
+for (let i = 0; i < 4; i++) assert.equal((await contact(contactForm({message:words(25)}))).status, 201, 'exactly 25 words is fine');
 assert.equal((await contact(contactForm())).status, 429, 'contact per-IP hourly limit');
-console.log('Verified contact form: readiness flag, origin, validation (100-word minimum), spam check, honeypot, header safety, saved before sending, email failure, and rate limiting.');
+console.log('Verified contact form: readiness flag, origin, validation (25 to 100 words), spam check, honeypot, header safety, saved before sending, email failure, and rate limiting.');
 
 // Cloudflare Access tokens: signed by the team's key, right audience, not expired
 const keyPair = await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify']);

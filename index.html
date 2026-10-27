@@ -1052,6 +1052,10 @@
             color:var(--forest);
         }
 
+        .word-count.is-over{
+            color:#a3312b;
+        }
+
         .contact-trap{
             position:absolute;
             left:-10000px;
@@ -1568,8 +1572,8 @@
                 </div>
                 <div class="field field-wide">
                     <label for="contactMessage">Your request</label>
-                    <textarea id="contactMessage" name="message" rows="8" maxlength="6000" required placeholder="Tell us what you have in mind: the occasion, how many guests, what you need from us, and anything else we should know."></textarea>
-                    <p class="word-count" id="contactWords" aria-live="polite">0 of 100 words minimum</p>
+                    <textarea id="contactMessage" name="message" rows="6" maxlength="1500" required placeholder="Tell us what you have in mind: the occasion, how many guests, what you need from us, and anything else we should know."></textarea>
+                    <p class="word-count" id="contactWords" aria-live="polite">25 to 100 words</p>
                 </div>
                 <!-- Honeypot: hidden from people, filled in by bots. -->
                 <div class="contact-trap" aria-hidden="true">
@@ -2164,7 +2168,8 @@
         const contactStatus = document.getElementById("contactStatus");
         const contactSubmit = document.getElementById("contactSubmit");
         const contactTurnstile = turnstileWidget("#contactTurnstile");
-        const CONTACT_MIN_WORDS = 100;
+        const CONTACT_MIN_WORDS = 25;
+        const CONTACT_MAX_WORDS = 100;
 
         // Same API host as the community photos (photos-worker.mjs); hidden until the email binding is live.
         async function loadContact(){
@@ -2188,8 +2193,12 @@
         const wordCount = () => contactMessage.value.split(/\s+/).filter(Boolean).length;
         function updateWordCount(){
             const n = wordCount();
-            contactWords.textContent = n >= CONTACT_MIN_WORDS ? `${n} words` : `${n} of ${CONTACT_MIN_WORDS} words minimum`;
-            contactWords.classList.toggle("is-enough", n >= CONTACT_MIN_WORDS);
+            contactWords.textContent = n === 0 ? `${CONTACT_MIN_WORDS} to ${CONTACT_MAX_WORDS} words`
+                : n < CONTACT_MIN_WORDS ? `${n} of ${CONTACT_MIN_WORDS} words minimum`
+                : n > CONTACT_MAX_WORDS ? `${n} words: please cut to ${CONTACT_MAX_WORDS}`
+                : `${n} of ${CONTACT_MAX_WORDS} words`;
+            contactWords.classList.toggle("is-enough", n >= CONTACT_MIN_WORDS && n <= CONTACT_MAX_WORDS);
+            contactWords.classList.toggle("is-over", n > CONTACT_MAX_WORDS);
         }
         contactMessage.addEventListener("input", updateWordCount);
         contactForm.addEventListener("focusin", () => contactTurnstile.load());
@@ -2202,6 +2211,7 @@
             const phone = field("contactPhone").value.trim();
             if (phone && !/^\+?[0-9 ()-]{7,20}$/.test(phone)) return setContactStatus("Please check the phone number.", "error");
             if (wordCount() < CONTACT_MIN_WORDS) return setContactStatus(`Please describe your request in at least ${CONTACT_MIN_WORDS} words (you have ${wordCount()}).`, "error");
+            if (wordCount() > CONTACT_MAX_WORDS) return setContactStatus(`Please keep your request to ${CONTACT_MAX_WORDS} words or fewer (you have ${wordCount()}).`, "error");
             contactTurnstile.load();
             const token = contactTurnstile.token();
             if (!token) return setContactStatus("Please wait for the spam check to finish, then try again.", "error");

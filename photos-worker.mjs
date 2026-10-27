@@ -10,8 +10,9 @@ const MAX_UPLOADS_PER_IP_PER_HOUR = 15;
 const MAX_PENDING = 300;
 const ID_PATTERN = /^[0-9a-f-]{36}$/;
 const CONTACT_REASONS = ['General enquiry', 'Booking / private event', 'Artist / performance', 'Press / media', 'Other'];
-const CONTACT_MIN_WORDS = 100;
-const CONTACT_MAX_CHARS = 6000;
+const CONTACT_MIN_WORDS = 25;
+const CONTACT_MAX_WORDS = 100;
+const CONTACT_MAX_CHARS = 1500;
 const MAX_CONTACTS_PER_IP_PER_HOUR = 5;
 
 const encoder = new TextEncoder();
@@ -229,7 +230,9 @@ function readContact(form) {
   if (!CONTACT_REASONS.includes(fields.reason)) return {error:'Please choose what your message is about.'};
   if (fields.eventDate && !validDate(fields.eventDate)) return {error:'Please check the event date.'};
   if (fields.message.length > CONTACT_MAX_CHARS) return {error:'Your message is too long. Please shorten it a little.'};
-  if (countWords(fields.message) < CONTACT_MIN_WORDS) return {error:`Please describe your request in at least ${CONTACT_MIN_WORDS} words.`};
+  const words = countWords(fields.message);
+  if (words < CONTACT_MIN_WORDS) return {error:`Please describe your request in at least ${CONTACT_MIN_WORDS} words.`};
+  if (words > CONTACT_MAX_WORDS) return {error:`Please keep your request to ${CONTACT_MAX_WORDS} words or fewer.`};
   return {fields};
 }
 
