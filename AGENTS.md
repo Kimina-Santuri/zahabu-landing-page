@@ -76,6 +76,7 @@ Four things that share source files but are **not** deployed the same way. Read 
 - **Reading saved messages:** there's no staff page yet. `npx wrangler d1 execute zahabu-tracker --remote --command "SELECT created_at, name, email, reason, emailed_at, email_error FROM contact_messages ORDER BY created_at DESC LIMIT 20"`.
 - **Debugging:** `npx wrangler tail -c wrangler.photos.toml --format pretty --method POST` logs `Contact email failed` with Cloudflare's error code (e.g. `E_RECIPIENT_NOT_ALLOWED` = info@ not verified, `E_SENDER_DOMAIN_NOT_AVAILABLE` = Email Routing not on mail.zahabu.co.ke).
 - **Preview:** `node preview.mjs` prints contact emails to the terminal instead of sending them.
+- **iPhone date field:** iOS Safari draws `<input type="date">` at its own width and ignores `width:100%`, so the event date field stretched past the others on phones. Fixed 2026-10-27 with `appearance:none`, `min-width:0` and left-aligned `::-webkit-date-and-time-value`; the user checked it on their phone. Keep those rules if the form is restyled.
 - **Turnstile:** the share dialog and the contact form each get their own widget through `turnstileWidget(selector)` in `index.html`; the script is only fetched when someone opens the share dialog or focuses the contact form.
 
 ## Equipment inventory
