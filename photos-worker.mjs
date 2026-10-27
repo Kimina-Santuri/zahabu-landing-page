@@ -257,7 +257,7 @@ async function submitContact(request, env, url) {
   const cors = corsHeaders(request, env);
   const origin = request.headers.get('origin');
   if (origin !== url.origin && !allowedOrigins(env).includes(origin)) return json({error:'Messages are only accepted from zahabu.co.ke.'}, 403, cors);
-  if (!env.CONTACT_EMAIL || !env.CONTACT_FROM) return json({error:'The contact form is not available yet. Please email info@zahabu.co.ke.'}, 503, cors);
+  if (!env.CONTACT_EMAIL || !env.CONTACT_FROM) return json({error:'The contact form is not available right now. Please try again later.'}, 503, cors);
   if (Number(request.headers.get('content-length') || 0) > 64 * 1024) return json({error:'Your message is too long.'}, 413, cors);
 
   let form;
@@ -285,7 +285,7 @@ async function submitContact(request, env, url) {
   } catch (sendError) {
     console.error('Contact email failed', JSON.stringify({id, code:sendError?.code, message:String(sendError?.message || sendError)}));
     await env.DB.prepare('UPDATE contact_messages SET email_error = ? WHERE id = ?').bind(String(sendError?.code || sendError?.message || 'send failed').slice(0, 200), id).run();
-    return json({error:'We could not send your message right now. Please try again later, or email info@zahabu.co.ke.'}, 502, cors);
+    return json({error:'We could not send your message right now. Please try again in a few minutes.'}, 502, cors);
   }
   await env.DB.prepare('UPDATE contact_messages SET emailed_at = ? WHERE id = ?').bind(new Date().toISOString(), id).run();
   return json({ok:true}, 201, cors);
