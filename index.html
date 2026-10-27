@@ -985,6 +985,93 @@
             color:var(--muted);
         }
 
+        /* ---------- CONTACT ---------- */
+
+        .contact{
+            text-align:center;
+        }
+
+        .contact-lead{
+            max-width:560px;
+            margin:22px auto 0;
+            font-size:17px;
+            line-height:1.7;
+            color:var(--ink-soft);
+        }
+
+        .contact-form{
+            max-width:980px;
+            margin:44px auto 0;
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:22px 24px;
+            padding:clamp(24px, 5vw, 56px);
+            border-radius:var(--radius);
+            background:var(--glass);
+            border:1px solid var(--glass-border);
+            -webkit-backdrop-filter:blur(18px) saturate(1.2);
+            backdrop-filter:blur(18px) saturate(1.2);
+            box-shadow:0 30px 80px -40px rgba(20,40,20,.4);
+            text-align:left;
+        }
+
+        .field-wide{
+            grid-column:1 / -1;
+        }
+
+        .contact-form select,
+        .contact-form textarea{
+            width:100%;
+            padding:13px 16px;
+            border-radius:12px;
+            border:1px solid var(--line);
+            background:#fff;
+            color:var(--ink);
+            font:inherit;
+            font-size:16px;
+        }
+
+        .contact-form input[type="date"]{
+            min-height:50px;
+            color:var(--ink);
+        }
+
+        .contact-form textarea{
+            min-height:200px;
+            resize:vertical;
+            line-height:1.6;
+        }
+
+        .word-count{
+            margin-top:8px;
+            font-size:13px;
+            color:var(--muted);
+        }
+
+        .word-count.is-enough{
+            color:var(--forest);
+        }
+
+        .contact-trap{
+            position:absolute;
+            left:-10000px;
+            width:1px;
+            height:1px;
+            overflow:hidden;
+        }
+
+        .contact-form .btn{
+            justify-self:start;
+            cursor:pointer;
+            font-family:inherit;
+        }
+
+        .contact-form .btn:disabled{
+            opacity:.5;
+            cursor:wait;
+            transform:none;
+        }
+
         /* ---------- VISIT ---------- */
 
         .visit-card{
@@ -1162,6 +1249,14 @@
             .visit-card{
                 grid-template-columns:1fr;
                 text-align:center;
+            }
+
+            .contact-form{
+                grid-template-columns:1fr;
+            }
+
+            .contact-form .btn{
+                justify-self:stretch;
             }
 
             .week-night{
@@ -1438,6 +1533,55 @@
             <a class="community-all" href="gallery.html" id="communityAll" hidden>View the full gallery <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></a>
         </section>
 
+        <!-- Shown once photos.zahabu.co.ke/api/contact says the email binding is ready; messages go to info@zahabu.co.ke. -->
+        <section class="contact" id="contact" hidden>
+            <span class="eyebrow reveal">Contact</span>
+            <h2 class="section-title reveal">Get in touch</h2>
+            <p class="contact-lead reveal">Planning an event, want to play at the garden, or have a question? Tell us about it and our team will reply by email.</p>
+
+            <form class="contact-form reveal" id="contactForm" novalidate>
+                <div class="field">
+                    <label for="contactName">Name</label>
+                    <input type="text" id="contactName" name="name" maxlength="100" autocomplete="name" required>
+                </div>
+                <div class="field">
+                    <label for="contactEmail">Email</label>
+                    <input type="email" id="contactEmail" name="email" maxlength="200" autocomplete="email" required>
+                </div>
+                <div class="field">
+                    <label for="contactPhone">Phone / WhatsApp (optional)</label>
+                    <input type="tel" id="contactPhone" name="phone" maxlength="20" autocomplete="tel" placeholder="+254 7…">
+                </div>
+                <div class="field">
+                    <label for="contactReason">What is it about?</label>
+                    <select id="contactReason" name="reason" required>
+                        <option>General enquiry</option>
+                        <option>Booking / private event</option>
+                        <option>Artist / performance</option>
+                        <option>Press / media</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="contactDate">Event date (optional)</label>
+                    <input type="date" id="contactDate" name="event_date">
+                </div>
+                <div class="field field-wide">
+                    <label for="contactMessage">Your request</label>
+                    <textarea id="contactMessage" name="message" rows="8" maxlength="6000" required placeholder="Tell us what you have in mind: the occasion, how many guests, what you need from us, and anything else we should know."></textarea>
+                    <p class="word-count" id="contactWords" aria-live="polite">0 of 100 words minimum</p>
+                </div>
+                <!-- Honeypot: hidden from people, filled in by bots. -->
+                <div class="contact-trap" aria-hidden="true">
+                    <label for="contactWebsite">Website</label>
+                    <input type="text" id="contactWebsite" name="website" tabindex="-1" autocomplete="off">
+                </div>
+                <div class="field-wide" id="contactTurnstile"></div>
+                <p class="share-status field-wide" id="contactStatus" role="status" aria-live="polite"></p>
+                <button type="submit" class="btn btn-solid" id="contactSubmit">Send message</button>
+            </form>
+        </section>
+
         <section class="visit" id="visit">
             <div class="visit-card reveal">
                 <div>
@@ -1463,6 +1607,7 @@
     <footer>
         <img src="images/logo-wordmark.png" alt="Zahabu">
         <a href="code-of-conduct.html">Code of conduct</a>
+        <a href="#contact" id="contactFooterLink" hidden>Contact us</a>
         <span>© 2026 Zahabu Culture Garden</span>
     </footer>
 
@@ -1842,24 +1987,34 @@
         const shareSubmit = document.getElementById("shareSubmit");
         const dropzone = document.getElementById("dropzone");
         let shareItems = [];
-        let turnstileWidget = null;
 
         function setShareStatus(text, kind = ""){
             shareStatus.textContent = text;
             shareStatus.className = `share-status${kind ? ` is-${kind}` : ""}`;
         }
 
-        function loadTurnstile(){
-            if (turnstileWidget !== null) return;
-            turnstileWidget = "loading";
-            window.onTurnstileLoad = () => {
-                turnstileWidget = turnstile.render("#turnstile", { sitekey:TURNSTILE_SITE_KEY, theme:"light" });
+        // Turnstile's script is only fetched once someone starts using a form, to save visitors' data.
+        let turnstileScript = null;
+        function turnstileWidget(selector){
+            let id = null;
+            return {
+                load(){
+                    if (id !== null) return;
+                    id = "loading";
+                    turnstileScript ||= new Promise(resolve => {
+                        window.onTurnstileLoad = resolve;
+                        const script = document.createElement("script");
+                        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad";
+                        script.async = true;
+                        document.head.append(script);
+                    });
+                    turnstileScript.then(() => { id = turnstile.render(selector, { sitekey:TURNSTILE_SITE_KEY, theme:"light" }); });
+                },
+                token(){ return id !== null && id !== "loading" ? turnstile.getResponse(id) || "" : ""; },
+                reset(){ if (id !== null && id !== "loading") turnstile.reset(id); }
             };
-            const script = document.createElement("script");
-            script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad";
-            script.async = true;
-            document.head.append(script);
         }
+        const shareTurnstile = turnstileWidget("#turnstile");
 
         // Re-encoding through a canvas resizes the photo and drops all EXIF data (GPS, camera, timestamps).
         async function encodeJpeg(bitmap, maxEdge, quality, maxBytes){
@@ -1950,7 +2105,7 @@
 
         function openShare(){
             shareDialog.showModal();
-            loadTurnstile();
+            shareTurnstile.load();
         }
         document.getElementById("shareOpen").addEventListener("click", openShare);
         // gallery.html's "Share your photos" links to index.html#share.
@@ -1971,7 +2126,7 @@
             e.preventDefault();
             if (!shareItems.length) return setShareStatus("Choose at least one photo.", "error");
             if (!document.getElementById("shareConsent").checked) return setShareStatus("Please confirm you took these photos and have permission to share them.", "error");
-            const token = typeof turnstile !== "undefined" && typeof turnstileWidget === "string" && turnstileWidget !== "loading" ? turnstile.getResponse(turnstileWidget) : "";
+            const token = shareTurnstile.token();
             if (!token) return setShareStatus("Please wait for the spam check to finish, then try again.", "error");
 
             const form = new FormData();
@@ -1996,7 +2151,77 @@
                 shareSubmit.disabled = false;
                 setShareStatus(error.message === "Failed to fetch" ? "Couldn't reach our server. Check your connection and try again." : error.message, "error");
             } finally {
-                if (typeof turnstile !== "undefined" && turnstileWidget && turnstileWidget !== "loading") turnstile.reset(turnstileWidget);
+                shareTurnstile.reset();
+            }
+        });
+
+        /* ---------- Contact form ---------- */
+
+        const contactSection = document.getElementById("contact");
+        const contactForm = document.getElementById("contactForm");
+        const contactMessage = document.getElementById("contactMessage");
+        const contactWords = document.getElementById("contactWords");
+        const contactStatus = document.getElementById("contactStatus");
+        const contactSubmit = document.getElementById("contactSubmit");
+        const contactTurnstile = turnstileWidget("#contactTurnstile");
+        const CONTACT_MIN_WORDS = 100;
+
+        // Same API host as the community photos (photos-worker.mjs); hidden until the email binding is live.
+        async function loadContact(){
+            try {
+                const response = await fetch(`${PHOTO_API}/api/contact`);
+                if (!response.ok || !(await response.json()).ready) return;
+            } catch {
+                return;
+            }
+            contactSection.hidden = false;
+            document.getElementById("contactFooterLink").hidden = false;
+            if (location.hash === "#contact") contactSection.scrollIntoView();
+        }
+        loadContact();
+
+        function setContactStatus(text, kind = ""){
+            contactStatus.textContent = text;
+            contactStatus.className = `share-status field-wide${kind ? ` is-${kind}` : ""}`;
+        }
+
+        const wordCount = () => contactMessage.value.split(/\s+/).filter(Boolean).length;
+        function updateWordCount(){
+            const n = wordCount();
+            contactWords.textContent = n >= CONTACT_MIN_WORDS ? `${n} words` : `${n} of ${CONTACT_MIN_WORDS} words minimum`;
+            contactWords.classList.toggle("is-enough", n >= CONTACT_MIN_WORDS);
+        }
+        contactMessage.addEventListener("input", updateWordCount);
+        contactForm.addEventListener("focusin", () => contactTurnstile.load());
+
+        contactForm.addEventListener("submit", async e => {
+            e.preventDefault();
+            const field = id => document.getElementById(id);
+            if (!field("contactName").value.trim()) return setContactStatus("Please enter your name.", "error");
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(field("contactEmail").value.trim())) return setContactStatus("Please enter a valid email address.", "error");
+            const phone = field("contactPhone").value.trim();
+            if (phone && !/^\+?[0-9 ()-]{7,20}$/.test(phone)) return setContactStatus("Please check the phone number.", "error");
+            if (wordCount() < CONTACT_MIN_WORDS) return setContactStatus(`Please describe your request in at least ${CONTACT_MIN_WORDS} words (you have ${wordCount()}).`, "error");
+            contactTurnstile.load();
+            const token = contactTurnstile.token();
+            if (!token) return setContactStatus("Please wait for the spam check to finish, then try again.", "error");
+
+            const form = new FormData(contactForm);
+            form.append("cf-turnstile-response", token);
+            contactSubmit.disabled = true;
+            setContactStatus("Sending…");
+            try {
+                const response = await fetch(`${PHOTO_API}/api/contact`, { method:"POST", body:form });
+                const body = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(body.error || "Sending failed. Please try again.");
+                contactForm.reset();
+                updateWordCount();
+                setContactStatus("Thank you! Your message has been sent. We'll reply by email.", "success");
+            } catch (error) {
+                setContactStatus(error.message === "Failed to fetch" ? "Couldn't reach our server. Check your connection and try again." : error.message, "error");
+            } finally {
+                contactSubmit.disabled = false;
+                contactTurnstile.reset();
             }
         });
     </script>

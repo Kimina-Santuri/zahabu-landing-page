@@ -20,10 +20,13 @@ if (!db.prepare('SELECT name FROM _local_migrations WHERE name = ?').get('0002_e
 }
 db.exec(await readFile('migrations/0003_community_photos.sql','utf8'));
 db.exec(await readFile('migrations/0004_inventory.sql','utf8'));
+db.exec(await readFile('migrations/0005_contact_messages.sql','utf8'));
 const env={DB:localD1(db)};
 // Turnstile's published test secret always passes; LOCAL_DEV skips Cloudflare Access for /admin.
-const photosEnv={DB:localD1(db),PHOTOS:localR2('/private/tmp/zahabu-photos-preview'),LOCAL_DEV:true,TURNSTILE_SECRET:'1x0000000000000000000000000000000AA',ALLOWED_ORIGINS:'http://localhost:5173,http://localhost:8123'};
-const isPhotoRoute=path=>path.startsWith('/api/photos')||path.startsWith('/media/')||path==='/admin'||path.startsWith('/admin/');
+const photosEnv={DB:localD1(db),PHOTOS:localR2('/private/tmp/zahabu-photos-preview'),LOCAL_DEV:true,TURNSTILE_SECRET:'1x0000000000000000000000000000000AA',ALLOWED_ORIGINS:'http://localhost:5173,http://localhost:8123',
+  // Contact form emails are printed here instead of sent.
+  CONTACT_FROM:'website@mail.zahabu.co.ke',CONTACT_EMAIL:{send:async message=>console.log('Contact email (not sent):',JSON.stringify(message,null,2))}};
+const isPhotoRoute=path=>path.startsWith('/api/photos')||path==='/api/contact'||path.startsWith('/media/')||path==='/admin'||path.startsWith('/admin/');
 http.createServer(async(req,res)=>{
   try {
     const chunks=[]; for await(const chunk of req) chunks.push(chunk);

@@ -16,7 +16,14 @@ database_id = "c1922d96-3031-4de5-97e9-dfe2bc043286"
 binding = "PHOTOS"
 bucket_name = "zahabu-community-photos"
 
+# Contact form email. Sends only to info@zahabu.co.ke, which must be a verified Email Routing destination address.
+# The sender (CONTACT_FROM) must be on a domain with Email Routing on: the mail.zahabu.co.ke subdomain, so Zoho keeps zahabu.co.ke's own mail.
+[[send_email]]
+name = "CONTACT_EMAIL"
+destination_address = "info@zahabu.co.ke"
+
 [vars]
+CONTACT_FROM = "website@mail.zahabu.co.ke"
 ALLOWED_ORIGINS = "https://zahabu.co.ke,https://www.zahabu.co.ke"
 # From Zero Trust > Access > Applications (the "photos admin" app): team domain and Application Audience (AUD) tag.
 # Until both are set, /admin refuses every request.

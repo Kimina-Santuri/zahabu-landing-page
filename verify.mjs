@@ -131,6 +131,54 @@ assert.equal((await admin('/admin')).status, 200);
 for (let i = 0; i < 3; i++) assert.equal((await upload(submission({files:Array.from({length:5},()=>[jpeg(800,600), jpeg(640,480)])}))).status, 201);
 assert.equal((await upload(submission())).status, 429, 'per-IP hourly limit');
 
+// ---------- Contact form ----------
+
+db.exec(await readFile('migrations/0005_contact_messages.sql','utf8'));
+const sent = [];
+const contactEnv = {...photoEnv, CONTACT_FROM:'website@mail.zahabu.co.ke', CONTACT_EMAIL:{async send(message){ if (message.subject.includes('FAIL')) throw Object.assign(new Error('nope'),{code:'E_DELIVERY_FAILED'}); sent.push(message); }}};
+const longMessage = Array.from({length:100},(_, i)=>`word${i}`).join(' ');
+const contactForm = (overrides={}) => {
+  const form = new FormData();
+  const values = {name:'Achieng O.', email:'achieng@example.com', phone:'+254 700 000000', reason:'Booking / private event', event_date:'2026-12-12', message:longMessage, 'cf-turnstile-response':'good-token', ...overrides};
+  for (const [key, value] of Object.entries(values)) form.append(key, value);
+  return form;
+};
+const contact = (form, env=contactEnv, origin='https://zahabu.co.ke', ip='198.51.100.7') => photosWorker.fetch(new Request(photosOrigin+'/api/contact',{method:'POST',headers:{origin,'cf-connecting-ip':ip},body:form}),env);
+const contactRows = () => db.prepare('SELECT * FROM contact_messages').all();
+
+assert.deepEqual(await (await photosWorker.fetch(new Request(photosOrigin+'/api/contact'),photoEnv)).json(), {ready:false}, 'hidden until the email binding exists');
+assert.deepEqual(await (await photosWorker.fetch(new Request(photosOrigin+'/api/contact'),contactEnv)).json(), {ready:true});
+assert.equal((await contact(contactForm(), photoEnv)).status, 503, 'no email binding');
+assert.equal((await contact(contactForm(), contactEnv, 'https://elsewhere.example')).status, 403);
+assert.equal((await contact(contactForm({message:longMessage.split(' ').slice(0,99).join(' ')}))).status, 400, 'needs 100 words');
+assert.equal((await contact(contactForm({email:'not-an-email'}))).status, 400);
+assert.equal((await contact(contactForm({name:''}))).status, 400);
+assert.equal((await contact(contactForm({reason:'Something else'}))).status, 400);
+assert.equal((await contact(contactForm({event_date:'2026-02-30'}))).status, 400);
+assert.equal((await contact(contactForm({phone:'call me maybe'}))).status, 400);
+assert.equal((await contact(contactForm({'cf-turnstile-response':'bad-token'}))).status, 400);
+assert.equal(contactRows().length, 0, 'rejected messages are not stored');
+assert.equal((await contact(contactForm({website:'http://spam.example'}))).status, 201, 'honeypot looks like success');
+assert.equal(sent.length + contactRows().length, 0, 'honeypot sends and stores nothing');
+
+const contactOk = await contact(contactForm({name:'Achieng\r\nBcc: victim@example.com', event_date:''}));
+assert.equal(contactOk.status, 201);
+assert.equal(contactOk.headers.get('access-control-allow-origin'), 'https://zahabu.co.ke');
+assert.equal(sent.length, 1);
+assert.equal(sent[0].to, 'info@zahabu.co.ke');
+assert.deepEqual(sent[0].replyTo, {email:'achieng@example.com', name:'Achieng Bcc: victim@example.com'});
+assert.ok(!/[\r\n]/.test(sent[0].subject), 'no newlines in the subject');
+assert.ok(sent[0].text.includes('Event date: -') && sent[0].text.includes(longMessage));
+assert.ok(contactRows()[0].emailed_at && !contactRows()[0].email_error);
+
+assert.equal((await contact(contactForm({name:'FAIL test'}), contactEnv, 'https://zahabu.co.ke', '198.51.100.8')).status, 502, 'email failure is reported');
+const failedRow = contactRows().find(row => row.name === 'FAIL test');
+assert.ok(failedRow && !failedRow.emailed_at && failedRow.email_error === 'E_DELIVERY_FAILED', 'kept in D1 when the email fails');
+
+for (let i = 0; i < 4; i++) assert.equal((await contact(contactForm())).status, 201);
+assert.equal((await contact(contactForm())).status, 429, 'contact per-IP hourly limit');
+console.log('Verified contact form: readiness flag, origin, validation (100-word minimum), spam check, honeypot, header safety, saved before sending, email failure, and rate limiting.');
+
 // Cloudflare Access tokens: signed by the team's key, right audience, not expired
 const keyPair = await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify']);
 const publicJwk = {...await crypto.subtle.exportKey('jwk',keyPair.publicKey),kid:'test-kid'};

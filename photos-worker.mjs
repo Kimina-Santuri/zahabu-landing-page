@@ -1,5 +1,6 @@
 // Community photo submissions for zahabu.co.ke, served from photos.zahabu.co.ke.
 // Public:  GET /api/photos (approved list), POST /api/photos (submit, held as pending), GET /media/{thumb|full}/<id>.jpg (approved only)
+//          GET /api/contact (is the form ready?), POST /api/contact (contact form: saved to D1, emailed to info@zahabu.co.ke)
 // Staff:   everything under /admin, gated by Cloudflare Access (verified here too, fail-closed)
 
 const MAX_PHOTOS_PER_SUBMISSION = 5;
@@ -8,6 +9,10 @@ const MAX_THUMB_BYTES = 600 * 1024;
 const MAX_UPLOADS_PER_IP_PER_HOUR = 15;
 const MAX_PENDING = 300;
 const ID_PATTERN = /^[0-9a-f-]{36}$/;
+const CONTACT_REASONS = ['General enquiry', 'Booking / private event', 'Artist / performance', 'Press / media', 'Other'];
+const CONTACT_MIN_WORDS = 100;
+const CONTACT_MAX_CHARS = 6000;
+const MAX_CONTACTS_PER_IP_PER_HOUR = 5;
 
 const encoder = new TextEncoder();
 
@@ -197,6 +202,92 @@ async function submitPhotos(request, env, url) {
   return json({ok:true, received:photos.length}, 201, cors);
 }
 
+// ---------- Contact form ----------
+
+export const countWords = text => text.split(/\s+/).filter(Boolean).length;
+
+function validDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+}
+
+// Returns {fields} or {error}. Single-line fields have newlines collapsed so nothing can reach the email headers.
+function readContact(form) {
+  const line = name => String(form.get(name) || '').replace(/\s+/g, ' ').trim();
+  const fields = {
+    name:line('name'),
+    email:line('email'),
+    phone:line('phone'),
+    reason:line('reason'),
+    eventDate:line('event_date'),
+    message:String(form.get('message') || '').replace(/\r\n?/g, '\n').trim(),
+  };
+  if (!fields.name || fields.name.length > 100) return {error:'Please enter your name.'};
+  if (fields.email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email)) return {error:'Please enter a valid email address.'};
+  if (fields.phone && !/^\+?[0-9 ()-]{7,20}$/.test(fields.phone)) return {error:'Please check the phone number.'};
+  if (!CONTACT_REASONS.includes(fields.reason)) return {error:'Please choose what your message is about.'};
+  if (fields.eventDate && !validDate(fields.eventDate)) return {error:'Please check the event date.'};
+  if (fields.message.length > CONTACT_MAX_CHARS) return {error:'Your message is too long. Please shorten it a little.'};
+  if (countWords(fields.message) < CONTACT_MIN_WORDS) return {error:`Please describe your request in at least ${CONTACT_MIN_WORDS} words.`};
+  return {fields};
+}
+
+function contactEmail(fields, env) {
+  const rows = [
+    ['Name', fields.name],
+    ['Email', fields.email],
+    ['Phone / WhatsApp', fields.phone || '-'],
+    ['About', fields.reason],
+    ['Event date', fields.eventDate || '-'],
+  ];
+  return {
+    to:env.CONTACT_TO || 'info@zahabu.co.ke',
+    from:{email:env.CONTACT_FROM, name:'Zahabu website'},
+    replyTo:{email:fields.email, name:fields.name},
+    subject:`Website enquiry: ${fields.reason} from ${fields.name}`.slice(0, 200),
+    text:`${rows.map(([label, value]) => `${label}: ${value}`).join('\n')}\n\n${fields.message}\n\n--\nSent from the contact form on zahabu.co.ke. Reply to this email to answer ${fields.name} directly.\n`,
+  };
+}
+
+async function submitContact(request, env, url) {
+  const cors = corsHeaders(request, env);
+  const origin = request.headers.get('origin');
+  if (origin !== url.origin && !allowedOrigins(env).includes(origin)) return json({error:'Messages are only accepted from zahabu.co.ke.'}, 403, cors);
+  if (!env.CONTACT_EMAIL || !env.CONTACT_FROM) return json({error:'The contact form is not available yet. Please email info@zahabu.co.ke.'}, 503, cors);
+  if (Number(request.headers.get('content-length') || 0) > 64 * 1024) return json({error:'Your message is too long.'}, 413, cors);
+
+  let form;
+  try { form = await request.formData(); } catch { return json({error:'Could not read the form.'}, 400, cors); }
+  // Hidden field that people never see; bots that fill it get a quiet "ok" and nothing is sent.
+  if (String(form.get('website') || '')) return json({ok:true}, 201, cors);
+
+  const {fields, error} = readContact(form);
+  if (error) return json({error}, 400, cors);
+
+  const ip = request.headers.get('cf-connecting-ip') || '';
+  if (!(await verifyTurnstile(form.get('cf-turnstile-response'), ip, env))) return json({error:'Spam check failed. Please try again.'}, 400, cors);
+
+  const ipHash = await hashIp(ip, env);
+  const hourAgo = new Date(Date.now() - 3600_000).toISOString();
+  const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM contact_messages WHERE ip_hash = ? AND created_at > ?').bind(ipHash, hourAgo).first();
+  if ((recent?.n || 0) >= MAX_CONTACTS_PER_IP_PER_HOUR) return json({error:'You have sent several messages in the last hour. Please try again later.'}, 429, cors);
+
+  // Saved before sending, so a message is never lost if the email fails.
+  const id = crypto.randomUUID();
+  await env.DB.prepare('INSERT INTO contact_messages (id, name, email, phone, reason, event_date, message, ip_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, fields.name, fields.email, fields.phone, fields.reason, fields.eventDate || null, fields.message, ipHash, new Date().toISOString()).run();
+  try {
+    await env.CONTACT_EMAIL.send(contactEmail(fields, env));
+  } catch (sendError) {
+    console.error('Contact email failed', JSON.stringify({id, code:sendError?.code, message:String(sendError?.message || sendError)}));
+    await env.DB.prepare('UPDATE contact_messages SET email_error = ? WHERE id = ?').bind(String(sendError?.code || sendError?.message || 'send failed').slice(0, 200), id).run();
+    return json({error:'We could not send your message right now. Please try again later, or email info@zahabu.co.ke.'}, 502, cors);
+  }
+  await env.DB.prepare('UPDATE contact_messages SET emailed_at = ? WHERE id = ?').bind(new Date().toISOString(), id).run();
+  return json({ok:true}, 201, cors);
+}
+
 async function serveMedia(env, size, id, {requireApproved}) {
   if (!['thumb', 'full'].includes(size) || !ID_PATTERN.test(id)) return new Response('Not found', {status:404});
   if (requireApproved) {
@@ -272,6 +363,14 @@ export default {
         if (request.method === 'OPTIONS') return new Response(null, {status:204, headers:{...corsHeaders(request, env), 'Access-Control-Allow-Methods':'GET, POST', 'Access-Control-Max-Age':'86400'}});
         if (request.method === 'GET') return await listApproved(request, env, url);
         if (request.method === 'POST') return await submitPhotos(request, env, url);
+        return json({error:'Method not allowed.'}, 405);
+      }
+
+      if (url.pathname === '/api/contact') {
+        if (request.method === 'OPTIONS') return new Response(null, {status:204, headers:{...corsHeaders(request, env), 'Access-Control-Allow-Methods':'GET, POST', 'Access-Control-Max-Age':'86400'}});
+        // The landing page only shows the form once this says the email binding is set up.
+        if (request.method === 'GET') return json({ready:Boolean(env.CONTACT_EMAIL && env.CONTACT_FROM)}, 200, {...corsHeaders(request, env), 'Cache-Control':'public, max-age=300'});
+        if (request.method === 'POST') return await submitContact(request, env, url);
         return json({error:'Method not allowed.'}, 405);
       }
 
