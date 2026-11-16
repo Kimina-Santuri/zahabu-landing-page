@@ -246,7 +246,7 @@ function readContact(form) {
   return {fields};
 }
 
-function contactEmail(fields, env) {
+function contactEmail(fields, env, origin) {
   const rows = [
     ['Name', fields.name],
     ['Email', fields.email],
@@ -259,9 +259,12 @@ function contactEmail(fields, env) {
     from:{email:env.CONTACT_FROM, name:'Zahabu website'},
     replyTo:{email:fields.email, name:fields.name},
     subject:`Website enquiry: ${fields.reason} from ${fields.name}`.slice(0, 200),
-    text:`${rows.map(([label, value]) => `${label}: ${value}`).join('\n')}\n\n${fields.message}\n\n--\nSent from the contact form on zahabu.co.ke. Reply to this email to answer ${fields.name} directly.\n`,
+    text:`${rows.map(([label, value]) => `${label}: ${value}`).join('\n')}\n\n${fields.message}\n\n--\nSent from the contact form on zahabu.co.ke. Reply to this email to answer ${fields.name} directly.\n${messagesLink(origin)}`,
   };
 }
+
+// Footer line on every email to info@: the staff Messages page lists both forms with Mark done.
+const messagesLink = origin => `All website messages (staff sign-in with Zoho): ${origin}/admin/messages\n`;
 
 async function submitContact(request, env, url) {
   const cors = corsHeaders(request, env);
@@ -291,7 +294,7 @@ async function submitContact(request, env, url) {
   await env.DB.prepare('INSERT INTO contact_messages (id, name, email, phone, reason, event_date, message, ip_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .bind(id, fields.name, fields.email, fields.phone, fields.reason, fields.eventDate || null, fields.message, ipHash, new Date().toISOString()).run();
   try {
-    await env.CONTACT_EMAIL.send(contactEmail(fields, env));
+    await env.CONTACT_EMAIL.send(contactEmail(fields, env, url.origin));
   } catch (sendError) {
     console.error('Contact email failed', JSON.stringify({id, code:sendError?.code, message:String(sendError?.message || sendError)}));
     await env.DB.prepare('UPDATE contact_messages SET email_error = ? WHERE id = ?').bind(String(sendError?.code || sendError?.message || 'send failed').slice(0, 200), id).run();
@@ -355,7 +358,7 @@ function vendorEmail(fields, id, photoCount, env, origin) {
     subject:`Vendor: ${fields.type} - ${fields.business} (${fields.name})`.slice(0, 200),
     text:`${rows.map(([label, value]) => `${label}: ${value}`).join('\n')}\n\n${fields.message}\n\n`
       + `See this enquiry${photoCount ? ' and its photos' : ''} online (staff sign-in with Zoho): ${origin}/admin/vendors/${id}\n\n`
-      + `--\nSent from the vendor form on zahabu.co.ke/vendors.html. Reply to this email to answer ${fields.name} directly.\n`,
+      + `--\nSent from the vendor form on zahabu.co.ke/vendors.html. Reply to this email to answer ${fields.name} directly.\n${messagesLink(origin)}`,
   };
 }
 

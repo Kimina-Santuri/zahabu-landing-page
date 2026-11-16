@@ -172,6 +172,7 @@ assert.deepEqual(sent[0].replyTo, {email:'achieng@example.com', name:'Achieng Bc
 assert.ok(!/[\r\n]/.test(sent[0].subject), 'no newlines in the subject');
 assert.ok(sent[0].text.includes('Event date: -') && sent[0].text.includes(longMessage));
 assert.ok(contactRows()[0].emailed_at && !contactRows()[0].email_error);
+assert.ok(sent[0].text.endsWith(`All website messages (staff sign-in with Zoho): ${photosOrigin}/admin/messages\n`), 'contact email links to the Messages page');
 
 assert.equal((await contact(contactForm({name:'FAIL test'}), contactEnv, 'https://zahabu.co.ke', '198.51.100.8')).status, 502, 'email failure is reported');
 const failedRow = contactRows().find(row => row.name === 'FAIL test');
@@ -223,6 +224,7 @@ assert.equal(vendorRow.nights, 'Wed: Jirani, Fri: Zahabu Sundowner');
 assert.ok(vendorRow.emailed_at && !vendorRow.email_error);
 assert.ok(sent[0].text.includes(`${photosOrigin}/admin/vendors/${vendorRow.id}`) && sent[0].text.includes('Needs electricity: Yes'));
 assert.equal(bucket.size, bucketBefore + 2);
+assert.ok(sent[0].text.endsWith(`${photosOrigin}/admin/messages\n`), 'vendor email links to the Messages page');
 assert.ok(!hasText(bucket.get(`vendors/${vendorRow.id}/0.jpg`), 'GPS'), 'vendor photos are stripped of metadata');
 
 const sponsorOk = await vendor(vendorForm({vendor_type:'Sponsor / brand partner', power:'Yes', nightsList:[]}));

@@ -92,6 +92,7 @@ Four things that share source files but are **not** deployed the same way. Read 
 - **Where:** `photos.zahabu.co.ke/admin/messages` (`messages.html` + `messages.js`, bundled into `PHOTO_ASSETS` by `build.mjs`), behind the same Access app as photo review; the two pages link to each other in the header, and each vendor email's `/admin/vendors/<id>` page links back to it. Built 2026-11-16.
 - **What it shows:** contact form messages and vendor enquiries in one list, newest first, from `GET /admin/api/messages?status=open|done` (up to 300 of each). Open/Done tabs with the open count, filter chips (All, Enquiries, All vendors, Food & drink, Market, Sponsors), search, and each message opens to show its details, full text and photos (fetched only when opened). Buttons: Reply by email (mailto with a "Re:" subject), WhatsApp (`wa.me`, Kenyan 07…/01… numbers turned into 2547…/2541…) and Call, plus **Mark done / Reopen** (`POST /admin/api/messages/<contact|vendor>/<id>/<done|reopen>`, same-origin only, records `done_at`/`done_by` from `migrations/0007_message_status.sql`). Messages whose email failed carry an "Email not sent" tag.
 - There's no delete on purpose; ask before adding one.
+- **Every email to info@ ends with a link to this page** (`messagesLink()` in `photos-worker.mjs`, added 2026-11-16), below the "Reply to this email" line. Vendor emails also keep their own `/admin/vendors/<id>` link.
 
 ## Equipment inventory
 
