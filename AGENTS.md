@@ -174,7 +174,7 @@ Opening any HTML file directly (`file://`) does not provide database access — 
 
 - Changed: new `vendors.html`, `POST /api/vendors` and staff page `/admin/vendors/<id>` in `photos-worker.mjs`, `migrations/0006_vendor_enquiries.sql`, links from `index.html` (contact intro + footer), `build.mjs`, `sitemap.xml`, `preview.mjs`, vendor tests in `verify.mjs`. The user confirmed the contact form's emails reach info@ reliably.
 - Verified: `node verify.mjs` passes (validation, photo limits and metadata stripping, photos not public, staff page needs Access and escapes input, email failure, rate limit). In Chrome against `node preview.mjs`: a market-stall enquiry with a photo went through, the email text and the staff page with the photo looked right, and at 390px the layout stacks with no sideways scroll.
-- Live 2026-11-16: migration 0006 applied to the live D1, photos Worker deployed (version `b4f01d96`), pushed (f9d261f) and zahabu.co.ke/vendors.html serves. Live checks: a POST from another origin gets 403, and the staff page redirects to Access sign-in. Pending: the user's real test from their phone.
+- Live 2026-11-16: migration 0006 applied to the live D1, photos Worker deployed (version `b4f01d96`), pushed (f9d261f) and zahabu.co.ke/vendors.html serves. Live checks: a POST from another origin gets 403, and the staff page redirects to Access sign-in. The user tested it from their phone on 2026-11-16: works.
 
 ## 2026-11-16: staff Messages page
 
@@ -182,3 +182,9 @@ Opening any HTML file directly (`file://`) does not provide database access — 
 - Verified: `node verify.mjs` passes (staff-only, both forms listed newest first, photos and failed emails flagged, mark done/reopen, cross-site blocked). Served by `node preview.mjs` with sample messages; the API returned the right list.
 - Looks: the user checked it in the local preview and approved it ("looks perfect"); no screenshot from here (Chrome extension disconnected, headless Brave hung).
 - Live 2026-11-16: migration 0007 applied, photos Worker deployed (version `218eb691`), pushed. Unsigned requests to the page redirect to Access sign-in.
+
+## 2026-11-16: styled emails (built, not deployed)
+
+- Changed: `contactEmail` and `vendorEmail` in `photos-worker.mjs` now also send an `html` version (the plain `text` stays) built by `emailHtml()`: ZAHABU logo (loaded from zahabu.co.ke, alt text "ZAHABU" if images are blocked), title and type tag, buttons (Reply to <first name>, WhatsApp via `whatsappNumber()`, and for vendors "View N photos"), a details table, the message in a soft box, and "Open all website messages" at the bottom. Tables and inline styles only, because email apps strip most CSS; every visitor value goes through `escapeHtml`. Tests added in `verify.mjs` (HTML present, links, WhatsApp number, escaping).
+- Verified: `node verify.mjs` passes; both examples checked in Chrome on desktop and at 375px; styled examples sent to kimina@zahabu.co.ke through a throwaway Worker (deleted afterwards).
+- Not done: Worker deploy, commit and push, pending the user's look at the examples in their inbox.

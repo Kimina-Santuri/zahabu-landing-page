@@ -173,6 +173,8 @@ assert.ok(!/[\r\n]/.test(sent[0].subject), 'no newlines in the subject');
 assert.ok(sent[0].text.includes('Event date: -') && sent[0].text.includes(longMessage));
 assert.ok(contactRows()[0].emailed_at && !contactRows()[0].email_error);
 assert.ok(sent[0].text.endsWith(`All website messages (staff sign-in with Zoho): ${photosOrigin}/admin/messages\n`), 'contact email links to the Messages page');
+assert.ok(sent[0].html.includes(`${photosOrigin}/admin/messages`) && sent[0].html.includes('New website enquiry'), 'contact email has a styled HTML version');
+assert.ok(sent[0].html.includes('https://wa.me/254700000000'), 'WhatsApp button uses the international number');
 
 assert.equal((await contact(contactForm({name:'FAIL test'}), contactEnv, 'https://zahabu.co.ke', '198.51.100.8')).status, 502, 'email failure is reported');
 const failedRow = contactRows().find(row => row.name === 'FAIL test');
@@ -225,6 +227,7 @@ assert.ok(vendorRow.emailed_at && !vendorRow.email_error);
 assert.ok(sent[0].text.includes(`${photosOrigin}/admin/vendors/${vendorRow.id}`) && sent[0].text.includes('Needs electricity: Yes'));
 assert.equal(bucket.size, bucketBefore + 2);
 assert.ok(sent[0].text.endsWith(`${photosOrigin}/admin/messages\n`), 'vendor email links to the Messages page');
+assert.ok(sent[0].html.includes(`${photosOrigin}/admin/vendors/${vendorRow.id}`) && sent[0].html.includes('View 2 photos'), 'vendor HTML email links to its photos');
 assert.ok(!hasText(bucket.get(`vendors/${vendorRow.id}/0.jpg`), 'GPS'), 'vendor photos are stripped of metadata');
 
 const sponsorOk = await vendor(vendorForm({vendor_type:'Sponsor / brand partner', power:'Yes', nightsList:[]}));
@@ -237,6 +240,8 @@ assert.equal((await photosWorker.fetch(new Request(`${photosOrigin}/admin/vendor
 assert.equal((await photosWorker.fetch(new Request(`${photosOrigin}/media/full/${vendorRow.id}.jpg`),photoEnv)).status, 404, 'vendor photos are not public');
 await vendor(vendorForm({business:'<script>alert(1)</script>', message:`<img src=x onerror=alert(1)> ${words(30)}`}), contactEnv, 'https://zahabu.co.ke', '198.51.100.21');
 const xssRow = vendorRows().find(row => row.business.startsWith('<script>'));
+const xssMail = sent.find(m => m.subject.includes('<script>'));
+assert.ok(xssMail && !xssMail.html.includes('<script>alert') && !xssMail.html.includes('<img src=x') && xssMail.html.includes('&lt;script&gt;'), 'HTML email escapes what vendors typed');
 const vendorHtml = await (await admin(`/admin/vendors/${xssRow.id}`)).text();
 assert.ok(!vendorHtml.includes('<script>alert') && !vendorHtml.includes('<img src=x') && vendorHtml.includes('&lt;script&gt;'), 'vendor page escapes input');
 const vendorPageHtml = await (await admin(`/admin/vendors/${vendorRow.id}`)).text();

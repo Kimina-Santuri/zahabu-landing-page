@@ -246,6 +246,64 @@ function readContact(form) {
   return {fields};
 }
 
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'})[char]);
+
+// ---------- Styled emails to info@ ----------
+// Plain tables and inline styles, because email apps (Gmail, Outlook, Zoho, phones) ignore most CSS.
+// Everything a visitor typed goes through escapeHtml. The plain-text version is still sent alongside.
+
+const EMAIL_LOGO = 'https://zahabu.co.ke/images/logo-wordmark.png';
+const EMAIL_FONT = "Futura, 'Century Gothic', 'Trebuchet MS', Arial, sans-serif";
+
+// Kenyan numbers are usually typed as 07… or 01…; WhatsApp links need 2547… (same rule as messages.js).
+export function whatsappNumber(phone) {
+  let digits = String(phone || '').replace(/\D/g, '');
+  if (/^0[17]\d{8}$/.test(digits)) digits = `254${digits.slice(1)}`;
+  else if (/^[17]\d{8}$/.test(digits)) digits = `254${digits}`;
+  return digits.length >= 9 ? digits : '';
+}
+
+function emailButton(label, href, primary = false) {
+  const colours = primary ? 'background:#141814;color:#ffffff;border:1px solid #141814;' : 'background:#ffffff;color:#141814;border:1px solid #141814;';
+  return `<a href="${escapeHtml(href)}" style="display:inline-block;margin:0 8px 8px 0;padding:11px 20px;border-radius:999px;${colours}font-family:${EMAIL_FONT};font-size:12px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;">${escapeHtml(label)}</a>`;
+}
+
+function emailHtml({eyebrow, title, subtitle, tag, buttons, rows, message, extra = '', footer, origin}) {
+  const detailRows = rows.map(([label, value, href]) => `<tr>
+<td style="padding:7px 16px 7px 0;vertical-align:top;white-space:nowrap;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#5f6a63;">${escapeHtml(label)}</td>
+<td style="padding:7px 0;vertical-align:top;font-size:15px;color:#141814;word-break:break-word;">${href ? `<a href="${escapeHtml(href)}" style="color:#2f5d3a;">${escapeHtml(value)}</a>` : escapeHtml(value)}</td></tr>`).join('');
+  const preheader = message.replace(/\s+/g, ' ').slice(0, 110);
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeHtml(title)}</title></head>
+<body style="margin:0;padding:0;background:#e9f0ea;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(preheader)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e9f0ea;"><tr><td align="center" style="padding:28px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:18px;font-family:${EMAIL_FONT};color:#141814;">
+<tr><td style="padding:26px 28px 0;"><img src="${EMAIL_LOGO}" width="112" alt="ZAHABU" style="display:block;width:112px;height:auto;border:0;font-size:20px;letter-spacing:3px;color:#141814;"></td></tr>
+<tr><td style="padding:26px 28px 0;">
+<p style="margin:0 0 10px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#5f6a63;">${escapeHtml(eyebrow)}</p>
+<h1 style="margin:0;font-size:26px;line-height:1.15;font-weight:normal;text-transform:uppercase;color:#141814;">${escapeHtml(title)}</h1>
+${subtitle ? `<p style="margin:6px 0 0;font-size:16px;color:#3d4640;">${escapeHtml(subtitle)}</p>` : ''}
+<p style="margin:14px 0 0;"><span style="display:inline-block;padding:4px 12px;border-radius:999px;background:${tag.vendor ? '#f4ead6;color:#7a5a1e' : '#e9f0ea;color:#2f5d3a'};font-size:11px;letter-spacing:2px;text-transform:uppercase;">${escapeHtml(tag.label)}</span></p>
+</td></tr>
+<tr><td style="padding:22px 28px 0;">${buttons.join('')}</td></tr>
+<tr><td style="padding:14px 28px 0;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-top:1px solid #dde3de;padding-top:8px;">${detailRows}</table></td></tr>
+<tr><td style="padding:18px 28px 0;"><div style="padding:18px 20px;border-radius:12px;background:#f3f5f2;font-size:15px;line-height:1.65;color:#141814;">${escapeHtml(message).replace(/\n/g, '<br>')}</div></td></tr>
+${extra}
+<tr><td style="padding:26px 28px 28px;">
+<p style="margin:0 0 14px;padding-top:18px;border-top:1px solid #dde3de;"><a href="${origin}/admin/messages" style="color:#2f5d3a;font-size:14px;">Open all website messages &rarr;</a></p>
+<p style="margin:0;font-size:12px;line-height:1.6;color:#5f6a63;">${escapeHtml(footer)} Staff pages ask you to sign in with Zoho.</p>
+</td></tr>
+</table></td></tr></table></body></html>`;
+}
+
+function contactButtons(fields, subject) {
+  const wa = whatsappNumber(fields.phone);
+  return [
+    emailButton(`Reply to ${fields.name.split(' ')[0]}`, `mailto:${fields.email}?subject=${encodeURIComponent(subject)}`, true),
+    ...(wa ? [emailButton('WhatsApp', `https://wa.me/${wa}`)] : []),
+  ];
+}
+
 export function contactEmail(fields, env, origin) {
   const rows = [
     ['Name', fields.name],
@@ -260,6 +318,21 @@ export function contactEmail(fields, env, origin) {
     replyTo:{email:fields.email, name:fields.name},
     subject:`Website enquiry: ${fields.reason} from ${fields.name}`.slice(0, 200),
     text:`${rows.map(([label, value]) => `${label}: ${value}`).join('\n')}\n\n${fields.message}\n\n--\nSent from the contact form on zahabu.co.ke. Reply to this email to answer ${fields.name} directly.\n${messagesLink(origin)}`,
+    html:emailHtml({
+      eyebrow:'New website enquiry',
+      title:fields.name,
+      tag:{label:fields.reason},
+      buttons:contactButtons(fields, `Re: Your message to Zahabu (${fields.reason})`),
+      rows:[
+        ['Email', fields.email, `mailto:${fields.email}`],
+        ...(fields.phone ? [['Phone / WhatsApp', fields.phone, `tel:${fields.phone.replace(/[^\d+]/g, '')}`]] : []),
+        ['About', fields.reason],
+        ...(fields.eventDate ? [['Event date', new Date(`${fields.eventDate}T00:00:00Z`).toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'long', year:'numeric', timeZone:'UTC'})]] : []),
+      ],
+      message:fields.message,
+      footer:`Sent from the contact form on zahabu.co.ke. Reply to this email to answer ${fields.name} directly.`,
+      origin,
+    }),
   };
 }
 
@@ -359,6 +432,27 @@ export function vendorEmail(fields, id, photoCount, env, origin) {
     text:`${rows.map(([label, value]) => `${label}: ${value}`).join('\n')}\n\n${fields.message}\n\n`
       + `See this enquiry${photoCount ? ' and its photos' : ''} online (staff sign-in with Zoho): ${origin}/admin/vendors/${id}\n\n`
       + `--\nSent from the vendor form on zahabu.co.ke/vendors.html. Reply to this email to answer ${fields.name} directly.\n${messagesLink(origin)}`,
+    html:emailHtml({
+      eyebrow:'New vendor enquiry',
+      title:fields.business,
+      subtitle:fields.name,
+      tag:{label:fields.type, vendor:true},
+      buttons:[
+        ...contactButtons(fields, `Re: Your vendor enquiry (${fields.business})`),
+        emailButton(photoCount ? `View ${photoCount} photo${photoCount > 1 ? 's' : ''}` : 'View online', `${origin}/admin/vendors/${id}`),
+      ],
+      rows:[
+        ['Email', fields.email, `mailto:${fields.email}`],
+        ['Phone / WhatsApp', fields.phone, `tel:${fields.phone.replace(/[^\d+]/g, '')}`],
+        ...(fields.links ? [['Links', fields.links]] : []),
+        ...(fields.nights.length ? [['Nights', fields.nights.join(', ')]] : []),
+        ...(fields.power ? [['Needs electricity', fields.power]] : []),
+        ['Photos', photoCount ? `${photoCount} attached online` : 'None'],
+      ],
+      message:fields.message,
+      footer:`Sent from the vendor form on zahabu.co.ke/vendors.html. Reply to this email to answer ${fields.name} directly.`,
+      origin,
+    }),
   };
 }
 
@@ -415,7 +509,6 @@ async function submitVendor(request, env, url) {
   return json({ok:true}, 201, cors);
 }
 
-const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'})[char]);
 
 // Staff view of one enquiry, linked from its email. Plain server-rendered page: no scripts.
 async function vendorPage(env, id) {
