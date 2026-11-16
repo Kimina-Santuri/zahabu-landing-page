@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Messages · Zahabu</title>
+  <link rel="icon" href="/admin/favicon.ico">
+  <style>
+    @font-face { font-family:Futura; src:url("/admin/Futura-Regular.ttf") format("truetype"); font-display:swap; }
+    :root { --ink:#141814; --muted:#5f6a63; --line:rgba(20,24,20,.16); --paper:#fff; --soft:#f3f5f2; --forest:#2f5d3a; --danger:#a3312b; --vendor:#7a5a1e; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:Futura, Arial, sans-serif; color:var(--ink); background:var(--soft); line-height:1.5; }
+    button, input { font:inherit; }
+    button { cursor:pointer; }
+    a { color:inherit; }
+    [hidden] { display:none !important; }
+    :focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
+
+    header { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:20px clamp(16px, 4vw, 40px); background:var(--paper); border-bottom:1px solid var(--line); }
+    header img { width:96px; display:block; }
+    .nav { display:flex; gap:6px; margin-right:auto; }
+    .nav a { padding:8px 14px; border-radius:999px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; text-decoration:none; }
+    .nav a[aria-current="page"] { background:var(--ink); color:#fff; }
+    .who { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+
+    main { padding:32px clamp(16px, 4vw, 40px) 64px; max-width:980px; margin:0 auto; }
+    h1 { font-weight:normal; font-size:clamp(26px, 4vw, 36px); text-transform:uppercase; letter-spacing:.02em; }
+    .intro { color:var(--muted); margin-top:6px; max-width:640px; }
+
+    .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:28px 0 20px; }
+    .tabs { display:inline-flex; gap:4px; padding:4px; background:var(--paper); border:1px solid var(--line); border-radius:999px; }
+    .tab { border:0; background:none; padding:9px 18px; border-radius:999px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; }
+    .tab[aria-pressed="true"] { background:var(--ink); color:#fff; }
+    .count { opacity:.7; margin-left:4px; }
+    .search { flex:1; min-width:200px; padding:11px 16px; border-radius:999px; border:1px solid var(--line); background:var(--paper); font-size:16px; }
+    .filters { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:20px; }
+    .filter { padding:7px 14px; border-radius:999px; border:1px solid var(--line); background:var(--paper); font-size:13px; }
+    .filter[aria-pressed="true"] { border-color:var(--ink); background:var(--ink); color:#fff; }
+
+    .list { display:grid; gap:12px; }
+    .item { background:var(--paper); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+    .item summary { list-style:none; display:grid; grid-template-columns:1fr auto; gap:4px 16px; padding:16px 18px; cursor:pointer; }
+    .item summary::-webkit-details-marker { display:none; }
+    .item[open] summary { border-bottom:1px solid var(--line); }
+    .who-line { font-size:17px; min-width:0; overflow-wrap:anywhere; }
+    .who-line .business { color:var(--muted); }
+    .when { font-size:13px; color:var(--muted); white-space:nowrap; text-align:right; }
+    .tags { display:flex; flex-wrap:wrap; gap:6px; grid-column:1 / -1; }
+    .tag { font-size:11px; letter-spacing:.12em; text-transform:uppercase; padding:3px 9px; border-radius:999px; background:var(--soft); color:var(--ink); }
+    .tag.vendor { background:#f4ead6; color:var(--vendor); }
+    .tag.warn { background:#f7e1df; color:var(--danger); }
+    .snippet { grid-column:1 / -1; color:var(--muted); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .item[open] .snippet { display:none; }
+
+    .body { padding:18px; }
+    .facts { display:grid; grid-template-columns:max-content 1fr; gap:4px 18px; font-size:14px; }
+    .facts dt { color:var(--muted); }
+    .facts dd { overflow-wrap:anywhere; }
+    .text { margin-top:16px; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .photos { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; margin-top:16px; }
+    .photos a { display:block; aspect-ratio:1; border-radius:10px; overflow:hidden; background:var(--soft); }
+    .photos img { width:100%; height:100%; object-fit:cover; display:block; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }
+    .btn { display:inline-flex; align-items:center; padding:9px 16px; border-radius:999px; border:1px solid var(--ink); background:var(--paper); font-size:12px; letter-spacing:.1em; text-transform:uppercase; text-decoration:none; }
+    .btn.primary { background:var(--ink); color:#fff; }
+    .btn.primary:hover { background:var(--forest); border-color:var(--forest); }
+    .btn.done { margin-left:auto; border-color:var(--forest); color:var(--forest); }
+    .btn:disabled { opacity:.5; cursor:wait; }
+    .done-note { margin-top:12px; font-size:13px; color:var(--muted); }
+
+    .empty, .message { padding:48px 20px; text-align:center; color:var(--muted); background:var(--paper); border:1px dashed var(--line); border-radius:14px; }
+    .message.error { color:var(--danger); }
+
+    @media (max-width:560px) {
+      .facts { grid-template-columns:1fr; }
+      .facts dt { margin-top:6px; }
+      .btn.done { margin-left:0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="/admin/logo.png" alt="Zahabu">
+    <nav class="nav"><a href="/admin">Photos</a><a href="/admin/messages" aria-current="page">Messages</a></nav>
+    <span class="who" id="who"></span>
+  </header>
+  <main>
+    <h1>Messages</h1>
+    <p class="intro">Everything sent through the contact form and the vendor form. Each one was also emailed to info@. Mark a message done once someone has answered it.</p>
+
+    <div class="controls">
+      <div class="tabs">
+        <button type="button" class="tab" data-status="open" aria-pressed="true">Open<span class="count" id="openCount"></span></button>
+        <button type="button" class="tab" data-status="done" aria-pressed="false">Done</button>
+      </div>
+      <input type="search" class="search" id="search" placeholder="Search names, businesses, messages…" aria-label="Search messages">
+    </div>
+    <div class="filters" id="filters">
+      <button type="button" class="filter" data-filter="all" aria-pressed="true">All</button>
+      <button type="button" class="filter" data-filter="contact" aria-pressed="false">Enquiries</button>
+      <button type="button" class="filter" data-filter="vendor" aria-pressed="false">All vendors</button>
+      <button type="button" class="filter" data-filter="Food &amp; drink stall" aria-pressed="false">Food &amp; drink</button>
+      <button type="button" class="filter" data-filter="Market stall" aria-pressed="false">Market</button>
+      <button type="button" class="filter" data-filter="Sponsor / brand partner" aria-pressed="false">Sponsors</button>
+    </div>
+
+    <p class="message" id="message" hidden></p>
+    <div class="list" id="list"></div>
+    <p class="empty" id="empty" hidden></p>
+  </main>
+  <script src="/admin/messages.js" defer></script>
+</body>
+</html>

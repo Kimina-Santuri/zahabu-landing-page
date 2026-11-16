@@ -2,7 +2,8 @@
 // Public:  GET /api/photos (approved list), POST /api/photos (submit, held as pending), GET /media/{thumb|full}/<id>.jpg (approved only)
 //          GET /api/contact (is the form ready?), POST /api/contact (contact form: saved to D1, emailed to info@zahabu.co.ke)
 //          POST /api/vendors (vendor enquiry from vendors.html, up to 3 photos: saved to D1 + R2, emailed to info@zahabu.co.ke)
-// Staff:   everything under /admin, gated by Cloudflare Access (verified here too, fail-closed)
+// Staff:   everything under /admin, gated by Cloudflare Access (verified here too, fail-closed):
+//          /admin (photo review), /admin/messages (contact + vendor enquiries), /admin/vendors/<id> (one vendor enquiry)
 
 const MAX_PHOTOS_PER_SUBMISSION = 5;
 const MAX_FULL_BYTES = 3 * 1024 * 1024;
@@ -430,7 +431,7 @@ async function vendorPage(env, id) {
 h1{margin:0 0 4px;font-size:26px;font-weight:600}.eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#5f6a63}dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;margin:24px 0}
 dt{color:#5f6a63}dd{margin:0;overflow-wrap:anywhere}p.msg{white-space:pre-wrap;border-top:1px solid #dde3de;padding-top:20px}.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:24px}
 .photos img{width:100%;border-radius:12px;display:block}a{color:#2f5d3a}@media(max-width:480px){dl{grid-template-columns:1fr}dt{margin-top:8px}}</style></head>
-<body><main><span class="eyebrow">Vendor enquiry</span><h1>${escapeHtml(row.business)}</h1><dl>${rows.map(([label, value, raw]) => `<dt>${label}</dt><dd>${raw ? value : escapeHtml(value)}</dd>`).join('')}</dl>
+<body><main><p style="margin:0 0 16px;font-size:14px"><a href="/admin/messages">← All messages</a></p><span class="eyebrow">Vendor enquiry</span><h1>${escapeHtml(row.business)}</h1><dl>${rows.map(([label, value, raw]) => `<dt>${label}</dt><dd>${raw ? value : escapeHtml(value)}</dd>`).join('')}</dl>
 <p class="msg">${escapeHtml(row.message)}</p>${photos ? `<div class="photos">${photos}</div>` : '<p>No photos were attached.</p>'}</main></body></html>`;
   return new Response(html, {headers:{
     'Content-Type':'text/html; charset=utf-8',
@@ -445,6 +446,30 @@ async function vendorMedia(env, id, index) {
   const object = await env.PHOTOS.get(`vendors/${id}/${index}.jpg`);
   if (!object) return new Response('Not found', {status:404});
   return new Response(object.body, {headers:{'Content-Type':'image/jpeg', 'X-Content-Type-Options':'nosniff', 'Cache-Control':'private, no-store'}});
+}
+
+// ---------- Staff Messages page (/admin/messages) ----------
+
+const MESSAGE_TABLES = {contact:'contact_messages', vendor:'vendor_enquiries'};
+
+async function listMessages(env, url) {
+  const done = url.searchParams.get('status') === 'done';
+  const where = done ? 'done_at IS NOT NULL' : 'done_at IS NULL';
+  const order = done ? 'done_at DESC' : 'created_at DESC';
+  const [{results:contacts}, {results:vendors}, openContacts, openVendors] = await Promise.all([
+    env.DB.prepare(`SELECT * FROM contact_messages WHERE ${where} ORDER BY ${order} LIMIT 300`).all(),
+    env.DB.prepare(`SELECT * FROM vendor_enquiries WHERE ${where} ORDER BY ${order} LIMIT 300`).all(),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM contact_messages WHERE done_at IS NULL').first(),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM vendor_enquiries WHERE done_at IS NULL').first(),
+  ]);
+  const common = row => ({id:row.id, name:row.name, email:row.email, phone:row.phone, message:row.message, createdAt:row.created_at,
+    emailFailed:!row.emailed_at, doneAt:row.done_at, doneBy:row.done_by});
+  const messages = [
+    ...contacts.map(row => ({...common(row), kind:'contact', category:row.reason, eventDate:row.event_date})),
+    ...vendors.map(row => ({...common(row), kind:'vendor', category:row.vendor_type, business:row.business, links:row.links, nights:row.nights, power:row.power,
+      photos:Array.from({length:row.photo_count}, (_, n) => `/admin/vendor-media/${row.id}/${n}.jpg`)})),
+  ].sort((a, b) => (done ? b.doneAt.localeCompare(a.doneAt) : b.createdAt.localeCompare(a.createdAt)));
+  return {messages, open:{contact:openContacts?.n || 0, vendor:openVendors?.n || 0}};
 }
 
 async function serveMedia(env, size, id, {requireApproved}) {
@@ -482,6 +507,20 @@ async function handleAdmin(request, env, url) {
     return json({email, photos:results.map(row => ({...row, thumb:`/admin/media/thumb/${row.id}.jpg`, full:`/admin/media/full/${row.id}.jpg`}))});
   }
 
+  if (url.pathname === '/admin/api/messages' && request.method === 'GET') return json({email, ...await listMessages(env, url)});
+  const messageMatch = url.pathname.match(/^\/admin\/api\/messages\/(contact|vendor)\/([0-9a-f-]{36})\/(done|reopen)$/);
+  if (messageMatch) {
+    if (request.method !== 'POST') return json({error:'Method not allowed.'}, 405);
+    if (request.headers.get('origin') !== url.origin || request.headers.get('sec-fetch-site') === 'cross-site') return json({error:'Request blocked.'}, 403);
+    const [, kind, id, action] = messageMatch;
+    const table = MESSAGE_TABLES[kind];
+    const row = await env.DB.prepare(`SELECT id FROM ${table} WHERE id = ?`).bind(id).first();
+    if (!row) return json({error:'That message no longer exists.'}, 404);
+    if (action === 'done') await env.DB.prepare(`UPDATE ${table} SET done_at = ?, done_by = ? WHERE id = ?`).bind(new Date().toISOString(), email, id).run();
+    else await env.DB.prepare(`UPDATE ${table} SET done_at = NULL, done_by = NULL WHERE id = ?`).bind(id).run();
+    return json({ok:true});
+  }
+
   const actionMatch = url.pathname.match(/^\/admin\/api\/photos\/([0-9a-f-]{36})(?:\/(approve|unpublish))?$/);
   if (actionMatch) {
     if (request.headers.get('origin') !== url.origin || request.headers.get('sec-fetch-site') === 'cross-site') return json({error:'Request blocked.'}, 403);
@@ -506,7 +545,8 @@ async function handleAdmin(request, env, url) {
   }
 
   if (request.method !== 'GET') return new Response('Method not allowed', {status:405});
-  const assetPath = url.pathname === '/admin' || url.pathname === '/admin/' ? '/admin/index.html' : url.pathname;
+  const assetPath = url.pathname === '/admin' || url.pathname === '/admin/' ? '/admin/index.html'
+    : url.pathname === '/admin/messages' ? '/admin/messages.html' : url.pathname;
   const asset = PHOTO_ASSETS[assetPath];
   if (!asset) return new Response('Not found', {status:404});
   return new Response(Uint8Array.from(atob(asset.data), char => char.charCodeAt(0)), {headers:{

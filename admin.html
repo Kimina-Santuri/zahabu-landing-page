@@ -17,6 +17,9 @@
 
     header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:20px clamp(16px, 4vw, 40px); background:var(--paper); border-bottom:1px solid var(--line); }
     header img { width:96px; display:block; }
+    .nav { display:flex; gap:6px; margin-right:auto; margin-left:12px; }
+    .nav a { padding:8px 14px; border-radius:999px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink); text-decoration:none; }
+    .nav a[aria-current="page"] { background:var(--ink); color:#fff; }
     .who { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
 
     main { padding:32px clamp(16px, 4vw, 40px) 64px; max-width:1280px; margin:0 auto; }
@@ -51,6 +54,7 @@
 <body>
   <header>
     <img src="/admin/logo.png" alt="Zahabu">
+    <nav class="nav"><a href="/admin" aria-current="page">Photos</a><a href="/admin/messages">Messages</a></nav>
     <span class="who" id="who"></span>
   </header>
   <main>

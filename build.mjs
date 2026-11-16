@@ -8,7 +8,7 @@ await mkdir('dist/.openai',{recursive:true});
 await writeFile('dist/server/index.js',`const ASSETS = ${JSON.stringify(assets)};\n${await readFile('worker.mjs','utf8')}`);
 await cp('.openai/hosting.json','dist/.openai/hosting.json');
 await cp('drizzle','dist/.openai/drizzle',{recursive:true});
-const photoAssetSources = {'/admin/index.html':'admin.html','/admin/admin.js':'admin.js','/admin/logo.png':'images/logo-wordmark.png','/admin/Futura-Regular.ttf':'fonts/Futura-Regular.ttf','/admin/favicon.ico':'images/favicon.ico'};
+const photoAssetSources = {'/admin/index.html':'admin.html','/admin/admin.js':'admin.js','/admin/messages.html':'messages.html','/admin/messages.js':'messages.js','/admin/logo.png':'images/logo-wordmark.png','/admin/Futura-Regular.ttf':'fonts/Futura-Regular.ttf','/admin/favicon.ico':'images/favicon.ico'};
 const photoAssets = {};
 for (const [route, path] of Object.entries(photoAssetSources)) photoAssets[route] = {data:(await readFile(path)).toString('base64'),type:types[path.split('.').pop()]};
 await mkdir('dist/photos',{recursive:true});

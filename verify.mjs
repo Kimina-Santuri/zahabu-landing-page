@@ -249,6 +249,32 @@ for (let i = 0; i < 3; i++) assert.equal((await vendor(vendorForm())).status, 20
 assert.equal((await vendor(vendorForm())).status, 429, 'vendor per-IP hourly limit');
 console.log('Verified vendor form: origin, validation, photos (JPEG only, max 3, metadata stripped, staff-only), staff page escaping, email failure, and rate limiting.');
 
+// ---------- Staff Messages page ----------
+
+db.exec(await readFile('migrations/0007_message_status.sql','utf8'));
+assert.equal((await photosWorker.fetch(new Request(photosOrigin+'/admin/api/messages'),photoEnv)).status, 403, 'messages need staff sign-in');
+assert.equal((await admin('/admin/messages')).status, 200, 'messages page is served');
+const inbox = await (await admin('/admin/api/messages')).json();
+const contactCount = contactRows().length, vendorCount = vendorRows().length;
+assert.equal(inbox.messages.length, contactCount + vendorCount, 'both forms in one list');
+assert.deepEqual(inbox.open, {contact:contactCount, vendor:vendorCount});
+assert.ok(inbox.messages.every((m, i, all) => i === 0 || all[i - 1].createdAt >= m.createdAt), 'newest first');
+const inboxVendor = inbox.messages.find(m => m.id === vendorRow.id);
+assert.equal(inboxVendor.kind, 'vendor');
+assert.deepEqual(inboxVendor.photos, [`/admin/vendor-media/${vendorRow.id}/0.jpg`, `/admin/vendor-media/${vendorRow.id}/1.jpg`]);
+assert.equal(inbox.messages.find(m => m.name === 'FAIL test').emailFailed, true, 'failed emails are flagged');
+assert.equal((await admin(`/admin/api/messages/vendor/${vendorRow.id}/done`, 'POST')).status, 200);
+assert.equal(vendorRows().find(r => r.id === vendorRow.id).done_by, 'preview@localhost');
+const afterDone = await (await admin('/admin/api/messages')).json();
+assert.ok(!afterDone.messages.some(m => m.id === vendorRow.id) && afterDone.open.vendor === vendorCount - 1, 'done leaves the open list');
+assert.ok((await (await admin('/admin/api/messages?status=done')).json()).messages.some(m => m.id === vendorRow.id), 'and shows under Done');
+assert.equal((await admin(`/admin/api/messages/vendor/${vendorRow.id}/reopen`, 'POST')).status, 200);
+assert.equal(vendorRows().find(r => r.id === vendorRow.id).done_at, null, 'reopen clears it');
+assert.equal((await photosWorker.fetch(new Request(`${photosOrigin}/admin/api/messages/vendor/${vendorRow.id}/done`,{method:'POST',headers:{origin:'https://elsewhere.example'}}),adminEnv)).status, 403, 'cross-site mark-done blocked');
+assert.equal((await admin('/admin/api/messages/contact/00000000-0000-0000-0000-000000000000/done', 'POST')).status, 404);
+assert.equal((await admin(`/admin/api/messages/vendor/${vendorRow.id}/done`)).status, 405);
+console.log('Verified Messages page: staff-only, both forms listed newest first, photos and failed emails shown, mark done / reopen, cross-site blocked.');
+
 // Cloudflare Access tokens: signed by the team's key, right audience, not expired
 const keyPair = await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify']);
 const publicJwk = {...await crypto.subtle.exportKey('jwk',keyPair.publicKey),kid:'test-kid'};

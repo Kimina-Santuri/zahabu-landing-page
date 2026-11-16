@@ -22,6 +22,11 @@ db.exec(await readFile('migrations/0003_community_photos.sql','utf8'));
 db.exec(await readFile('migrations/0004_inventory.sql','utf8'));
 db.exec(await readFile('migrations/0005_contact_messages.sql','utf8'));
 db.exec(await readFile('migrations/0006_vendor_enquiries.sql','utf8'));
+// 0007 is ALTER TABLE, so apply it once.
+if (!db.prepare('SELECT name FROM _local_migrations WHERE name = ?').get('0007_message_status.sql')) {
+  db.exec(await readFile('migrations/0007_message_status.sql','utf8'));
+  db.prepare('INSERT INTO _local_migrations VALUES (?)').run('0007_message_status.sql');
+}
 const env={DB:localD1(db)};
 // Turnstile's published test secret always passes; LOCAL_DEV skips Cloudflare Access for /admin.
 const photosEnv={DB:localD1(db),PHOTOS:localR2('/private/tmp/zahabu-photos-preview'),LOCAL_DEV:true,TURNSTILE_SECRET:'1x0000000000000000000000000000000AA',ALLOWED_ORIGINS:'http://localhost:5173,http://localhost:8123',
@@ -36,7 +41,7 @@ http.createServer(async(req,res)=>{
     const response=isPhotoRoute(path)?await photosWorker.fetch(request,photosEnv):await worker.fetch(request,env);
     res.writeHead(response.status,Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer()));
   } catch (error) {console.error(error);res.writeHead(500);res.end('Preview unavailable');}
-}).listen(5173,'127.0.0.1',()=>console.log('Local: http://localhost:5173/ (site), /tracker.html, /admin (photo review)'));
+}).listen(5173,'127.0.0.1',()=>console.log('Local: http://localhost:5173/ (site), /tracker.html, /admin (photo review), /admin/messages'));
 // The inventory owns '/' on its own hostname, so it gets its own port. INVENTORY_ROLE=viewer previews the read-only view.
 const inventoryEnv={DB:localD1(db),MEDIA:localR2('/private/tmp/zahabu-inventory-preview'),LOCAL_DEV:true,EDITOR_EMAILS:process.env.INVENTORY_ROLE==='viewer'?'':'preview@localhost'};
 http.createServer(async(req,res)=>{

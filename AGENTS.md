@@ -85,7 +85,13 @@ Four things that share source files but are **not** deployed the same way. Read 
 - **Fields:** vendor type (cards), business/brand name, name, email, phone/WhatsApp (**required** here, unlike the general form), Instagram/TikTok/website (optional), nights of interest (optional checkboxes: the four weekly nights + "Special events"), "Does your stall need electricity?" (Yes/No/Not sure, stalls only, hidden for sponsors), description (25 to 100 words, same limits as the contact form; the placeholder changes with the vendor type), and up to 3 photos (optional). The type and night lists live in both `vendors.html` and `VENDOR_TYPES`/`VENDOR_NIGHTS` in `photos-worker.mjs`: change both, e.g. when a weekly night changes.
 - **Backend:** `POST https://photos.zahabu.co.ke/api/vendors` in `photos-worker.mjs`, the same checks as the contact form (origin, Turnstile, honeypot `website`, 5 per IP per hour, saved before sending, email failure kept in `email_error`). Saved to D1 `vendor_enquiries` (`migrations/0006_vendor_enquiries.sql`) and emailed to info@ with the subject `Vendor: <type> - <business> (<name>)` and Reply-To the vendor. The page uses `GET /api/contact`'s ready flag to warn if email isn't set up.
 - **Photos:** shrunk in the browser to 1600px JPEG ≤1.4 MB (drops EXIF), re-stripped server-side with `sanitizeJpeg`, stored in the community photos R2 bucket under `vendors/<id>/<n>.jpg`. They are **never public**: `/media/...` only serves approved community photos. Staff see them through the link at the bottom of each email, `photos.zahabu.co.ke/admin/vendors/<id>` (behind the existing photos Access app, so Zoho sign-in), a plain server-rendered page with the details and photos (`/admin/vendor-media/<id>/<n>.jpg`). Everything vendors typed is HTML-escaped there, and the page has a no-script CSP.
-- **Reading saved enquiries:** `npx wrangler d1 execute zahabu-tracker --remote --command "SELECT created_at, vendor_type, business, name, phone, emailed_at, email_error FROM vendor_enquiries ORDER BY created_at DESC LIMIT 20"`. A staff "Messages" page for both forms is the planned next step.
+- **Reading saved enquiries:** `npx wrangler d1 execute zahabu-tracker --remote --command "SELECT created_at, vendor_type, business, name, phone, emailed_at, email_error FROM vendor_enquiries ORDER BY created_at DESC LIMIT 20"`. Easier: the staff Messages page (below).
+
+## Staff Messages page
+
+- **Where:** `photos.zahabu.co.ke/admin/messages` (`messages.html` + `messages.js`, bundled into `PHOTO_ASSETS` by `build.mjs`), behind the same Access app as photo review; the two pages link to each other in the header, and each vendor email's `/admin/vendors/<id>` page links back to it. Built 2026-11-16.
+- **What it shows:** contact form messages and vendor enquiries in one list, newest first, from `GET /admin/api/messages?status=open|done` (up to 300 of each). Open/Done tabs with the open count, filter chips (All, Enquiries, All vendors, Food & drink, Market, Sponsors), search, and each message opens to show its details, full text and photos (fetched only when opened). Buttons: Reply by email (mailto with a "Re:" subject), WhatsApp (`wa.me`, Kenyan 07…/01… numbers turned into 2547…/2541…) and Call, plus **Mark done / Reopen** (`POST /admin/api/messages/<contact|vendor>/<id>/<done|reopen>`, same-origin only, records `done_at`/`done_by` from `migrations/0007_message_status.sql`). Messages whose email failed carry an "Email not sent" tag.
+- There's no delete on purpose; ask before adding one.
 
 ## Equipment inventory
 
@@ -116,6 +122,7 @@ Four things that share source files but are **not** deployed the same way. Read 
 - `tracker-calendar.js`: List/Calendar toggle and month grid, used by both `tracker.html` and `viewer.html`
 - `viewer.html`, `viewer.js` — read-only tracker view
 - `photos-worker.mjs` — community photos Worker (public submit/list/media API + contact form `/api/contact` + Access-gated `/admin`); built into `dist/photos/index.js` with `PHOTO_ASSETS` (admin page files) prepended
+- `messages.html`, `messages.js`: staff Messages page, served at `photos.zahabu.co.ke/admin/messages`
 - `admin.html`, `admin.js` — staff photo review page, served at `photos.zahabu.co.ke/admin`
 - `inventory.html`, `inventory.js`: equipment inventory page (list, filters, detail, edit/log/photo forms, CSV export)
 - `inventory-worker.mjs`: equipment inventory Worker (Access-gated API + media + page); `wrangler.inventory.toml` is its config
@@ -125,7 +132,7 @@ Four things that share source files but are **not** deployed the same way. Read 
 - `build.mjs` — bundles every file listed in its `paths` array as base64 into `dist/server/index.js` (prepended with `worker.mjs`'s source), plus copies `.openai/hosting.json` and `drizzle/` into `dist/.openai/`
 - `db/schema.ts` — Drizzle ORM schema (single `work_dates` table)
 - `drizzle.config.ts` / `drizzle/` — output of `drizzle-kit generate`; copied into the build for hosted deploys
-- `migrations/`: the actual D1 migration sequence, all applied to the live database (`0001_initial.sql`, `0002_entry_details.sql`, `0003_community_photos.sql`, `0004_inventory.sql`; `0005_contact_messages.sql`, applied 2026-10-27; `0006_vendor_enquiries.sql`, applied 2026-11-16). Separate from `drizzle/`, which is a stale snapshot
+- `migrations/`: the actual D1 migration sequence, all applied to the live database (`0001_initial.sql`, `0002_entry_details.sql`, `0003_community_photos.sql`, `0004_inventory.sql`; `0005_contact_messages.sql`, applied 2026-10-27; `0006_vendor_enquiries.sql`, applied 2026-11-16; `0007_message_status.sql`, applied 2026-11-16; it's ALTER TABLE, so `preview.mjs` applies it once and records it in `_local_migrations`). Separate from `drizzle/`, which is a stale snapshot
 - `verify.mjs` — sanity checks for persistence/validation logic
 - `preview.mjs` — local dev servers (`http://localhost:5173` for site/tracker/photos admin, `:5174` for the inventory) using a throwaway SQLite DB in `/private/tmp/zahabu-tracker-preview.sqlite` (delete it for a fresh start); applies `drizzle/` then the `migrations/` files it needs; never touches hosted records
 - `wrangler.toml` — config for the live `zahabu-tech-tracker` Worker (tracker + viewer) and its D1 binding
@@ -166,3 +173,10 @@ Opening any HTML file directly (`file://`) does not provide database access — 
 - Changed: new `vendors.html`, `POST /api/vendors` and staff page `/admin/vendors/<id>` in `photos-worker.mjs`, `migrations/0006_vendor_enquiries.sql`, links from `index.html` (contact intro + footer), `build.mjs`, `sitemap.xml`, `preview.mjs`, vendor tests in `verify.mjs`. The user confirmed the contact form's emails reach info@ reliably.
 - Verified: `node verify.mjs` passes (validation, photo limits and metadata stripping, photos not public, staff page needs Access and escapes input, email failure, rate limit). In Chrome against `node preview.mjs`: a market-stall enquiry with a photo went through, the email text and the staff page with the photo looked right, and at 390px the layout stacks with no sideways scroll.
 - Live 2026-11-16: migration 0006 applied to the live D1, photos Worker deployed (version `b4f01d96`), pushed (f9d261f) and zahabu.co.ke/vendors.html serves. Live checks: a POST from another origin gets 403, and the staff page redirects to Access sign-in. Pending: the user's real test from their phone.
+
+## 2026-11-16: staff Messages page
+
+- Changed: new `messages.html`/`messages.js`, messages API and routes in `photos-worker.mjs`, `migrations/0007_message_status.sql`, Photos/Messages header links in `admin.html`, `build.mjs`, `preview.mjs`, Messages tests in `verify.mjs`.
+- Verified: `node verify.mjs` passes (staff-only, both forms listed newest first, photos and failed emails flagged, mark done/reopen, cross-site blocked). Served by `node preview.mjs` with sample messages; the API returned the right list.
+- Looks: the user checked it in the local preview and approved it ("looks perfect"); no screenshot from here (Chrome extension disconnected, headless Brave hung).
+- Live 2026-11-16: migration 0007 applied, photos Worker deployed (version `218eb691`), pushed. Unsigned requests to the page redirect to Access sign-in.
