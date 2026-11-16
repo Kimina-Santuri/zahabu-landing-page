@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Vendors — Zahabu Culture Garden</title>
+    <meta name="description" content="Sell food, drinks or your work at Zahabu Culture Garden, or partner with us as a sponsor. Tell us about your business.">
+    <meta property="og:title" content="Vendors — Zahabu Culture Garden">
+    <meta property="og:description" content="Food & drink stalls, market stalls and brand partners: tell us about your business.">
+    <meta property="og:image" content="https://zahabu.co.ke/images/icon-512.png">
+
+    <link rel="icon" href="images/favicon.ico">
+
+    <style>
+
+        @font-face{
+            font-family:"Futura";
+            src:url("fonts/Futura-Regular.ttf") format("truetype");
+            font-weight:normal;
+            font-style:normal;
+            font-display:swap;
+        }
+
+        :root{
+            --ink:#141814;
+            --ink-soft:#3d4640;
+            --muted:#5f6a63;
+            --glass:rgba(255,255,255,.62);
+            --glass-border:rgba(255,255,255,.7);
+            --line:rgba(20,24,20,.14);
+            --forest:#2f5d3a;
+            --error:#a3312b;
+            --radius:22px;
+            --gutter:clamp(16px, 5vw, 56px);
+            --ease:cubic-bezier(.22,.7,.2,1);
+        }
+
+        *{
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
+        }
+
+        html,
+        body{
+            width:100%;
+            min-height:100%;
+            overflow-x:hidden;
+        }
+
+        body{
+            font-family:"Futura", sans-serif;
+            font-size:16px;
+            color:var(--ink);
+            background:#e9f0ea;
+            -webkit-font-smoothing:antialiased;
+        }
+
+        a{
+            color:inherit;
+            text-decoration:none;
+        }
+
+        img{
+            display:block;
+        }
+
+        :focus-visible{
+            outline:2px solid var(--ink);
+            outline-offset:3px;
+        }
+
+        /* ---------- BACKGROUND (same as index.html) ---------- */
+
+        .bg-photo,
+        .bg-overlay{
+            position:fixed;
+            inset:0;
+        }
+
+        .bg-photo{
+            background:url("assets/garden-background.jpg") center/cover no-repeat;
+            z-index:-2;
+        }
+
+        .bg-overlay{
+            z-index:-1;
+            background:linear-gradient(
+                to bottom,
+                rgba(255,255,255,.12) 0%,
+                rgba(255,255,255,.34) 45%,
+                rgba(255,255,255,.55) 100%
+            );
+        }
+
+        /* ---------- HEADER ---------- */
+
+        .top{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:16px;
+            padding:22px var(--gutter);
+        }
+
+        .top img{
+            width:96px;
+            height:auto;
+        }
+
+        .back{
+            font-size:13px;
+            letter-spacing:.16em;
+            text-transform:uppercase;
+            padding:6px 0;
+            border-bottom:1px solid transparent;
+            transition:border-color .2s ease;
+        }
+
+        .back:hover{
+            border-bottom-color:currentColor;
+        }
+
+        /* ---------- PAGE ---------- */
+
+        main{
+            padding:clamp(24px, 5vw, 56px) var(--gutter) clamp(64px, 10vw, 120px);
+        }
+
+        .card{
+            max-width:860px;
+            margin:0 auto;
+            padding:clamp(24px, 6vw, 56px);
+            border-radius:var(--radius);
+            background:var(--glass);
+            border:1px solid var(--glass-border);
+            -webkit-backdrop-filter:blur(18px) saturate(1.2);
+            backdrop-filter:blur(18px) saturate(1.2);
+            box-shadow:0 30px 80px -40px rgba(20,40,20,.4);
+        }
+
+        .eyebrow{
+            display:block;
+            font-size:12px;
+            letter-spacing:.26em;
+            text-transform:uppercase;
+            color:var(--muted);
+            margin-bottom:18px;
+        }
+
+        h1{
+            font-weight:normal;
+            font-size:clamp(32px, 6vw, 56px);
+            line-height:1.04;
+            text-transform:uppercase;
+        }
+
+        .intro{
+            margin-top:24px;
+            font-size:clamp(17px, 2.2vw, 20px);
+            line-height:1.6;
+            color:var(--ink-soft);
+        }
+
+        h2{
+            font-weight:normal;
+            font-size:13px;
+            letter-spacing:.2em;
+            text-transform:uppercase;
+            color:var(--muted);
+            margin:40px 0 14px;
+            padding-top:28px;
+            border-top:1px solid var(--line);
+        }
+
+        /* ---------- VENDOR TYPE CARDS ---------- */
+
+        .types{
+            display:grid;
+            grid-template-columns:repeat(3, 1fr);
+            gap:12px;
+            border:0;
+        }
+
+        .type{
+            position:relative;
+            display:block;
+            padding:18px;
+            border-radius:16px;
+            border:1.5px solid var(--line);
+            background:rgba(255,255,255,.7);
+            cursor:pointer;
+            transition:border-color .2s ease, background .2s ease;
+        }
+
+        .type input{
+            position:absolute;
+            opacity:0;
+            pointer-events:none;
+        }
+
+        .type strong{
+            display:block;
+            font-weight:normal;
+            font-size:17px;
+            line-height:1.25;
+            text-transform:uppercase;
+            letter-spacing:.02em;
+        }
+
+        .type span{
+            display:block;
+            margin-top:8px;
+            font-size:14px;
+            line-height:1.5;
+            color:var(--ink-soft);
+        }
+
+        .type:has(input:checked){
+            border-color:var(--ink);
+            background:#fff;
+        }
+
+        .type:has(input:focus-visible){
+            outline:2px solid var(--ink);
+            outline-offset:3px;
+        }
+
+        /* ---------- FORM ---------- */
+
+        .grid{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:20px 22px;
+        }
+
+        .field{
+            min-width:0;
+        }
+
+        .wide{
+            grid-column:1 / -1;
+        }
+
+        .field > label,
+        .legend{
+            display:block;
+            font-size:11px;
+            letter-spacing:.2em;
+            text-transform:uppercase;
+            color:var(--muted);
+            margin-bottom:8px;
+        }
+
+        .field input[type="text"],
+        .field input[type="email"],
+        .field input[type="tel"],
+        .field textarea{
+            width:100%;
+            padding:13px 16px;
+            border-radius:12px;
+            border:1px solid var(--line);
+            background:#fff;
+            color:var(--ink);
+            font:inherit;
+            font-size:16px;
+        }
+
+        .field textarea{
+            min-height:180px;
+            resize:vertical;
+            line-height:1.6;
+        }
+
+        fieldset.field{
+            border:0;
+        }
+
+        .choices{
+            display:flex;
+            flex-wrap:wrap;
+            gap:8px;
+        }
+
+        .chip{
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            padding:9px 14px;
+            border-radius:999px;
+            border:1px solid var(--line);
+            background:#fff;
+            font-size:14px;
+            cursor:pointer;
+        }
+
+        .chip input{
+            width:16px;
+            height:16px;
+            accent-color:var(--forest);
+        }
+
+        .chip:has(input:checked){
+            border-color:var(--ink);
+        }
+
+        .hint,
+        .word-count{
+            margin-top:8px;
+            font-size:13px;
+            line-height:1.5;
+            color:var(--muted);
+        }
+
+        .word-count.is-enough{
+            color:var(--forest);
+        }
+
+        .word-count.is-over{
+            color:var(--error);
+        }
+
+        /* ---------- PHOTOS ---------- */
+
+        .photo-pick{
+            position:relative;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:10px;
+            padding:22px 16px;
+            border:1.5px dashed rgba(20,24,20,.3);
+            border-radius:16px;
+            background:rgba(255,255,255,.5);
+            text-align:center;
+            font-size:15px;
+            cursor:pointer;
+            transition:border-color .2s ease, background .2s ease;
+        }
+
+        .photo-pick:hover{
+            border-color:var(--ink);
+            background:rgba(255,255,255,.8);
+        }
+
+        .photo-pick input{
+            position:absolute;
+            width:1px;
+            height:1px;
+            opacity:0;
+        }
+
+        .photo-pick[hidden]{
+            display:none;
+        }
+
+        .previews{
+            display:grid;
+            grid-template-columns:repeat(3, 1fr);
+            gap:10px;
+            margin-top:12px;
+        }
+
+        .previews:empty{
+            display:none;
+        }
+
+        .preview{
+            position:relative;
+            aspect-ratio:1;
+            border-radius:12px;
+            overflow:hidden;
+            background:#fff;
+        }
+
+        .preview img{
+            width:100%;
+            height:100%;
+            object-fit:cover;
+        }
+
+        .preview button{
+            position:absolute;
+            top:6px;
+            right:6px;
+            width:28px;
+            height:28px;
+            border-radius:50%;
+            border:0;
+            background:rgba(0,0,0,.6);
+            color:#fff;
+            font-size:16px;
+            line-height:1;
+            cursor:pointer;
+        }
+
+        /* ---------- SUBMIT ---------- */
+
+        .trap{
+            position:absolute;
+            left:-10000px;
+            width:1px;
+            height:1px;
+            overflow:hidden;
+        }
+
+        .status{
+            font-size:15px;
+            line-height:1.5;
+            min-height:1.5em;
+        }
+
+        .status.is-error{
+            color:var(--error);
+        }
+
+        .status.is-success{
+            color:var(--forest);
+        }
+
+        .btn{
+            justify-self:start;
+            display:inline-flex;
+            align-items:center;
+            gap:10px;
+            padding:14px 26px;
+            border-radius:999px;
+            font:inherit;
+            font-size:13px;
+            letter-spacing:.14em;
+            text-transform:uppercase;
+            border:1px solid var(--ink);
+            background:var(--ink);
+            color:#fff;
+            cursor:pointer;
+            transition:background .25s ease, transform .25s var(--ease);
+        }
+
+        .btn:hover{
+            background:var(--forest);
+            border-color:var(--forest);
+            transform:translateY(-2px);
+        }
+
+        .btn:disabled{
+            opacity:.5;
+            cursor:wait;
+            transform:none;
+        }
+
+        .small{
+            margin-top:28px;
+            font-size:14px;
+            line-height:1.6;
+            color:var(--muted);
+        }
+
+        .small a{
+            text-decoration:underline;
+            text-underline-offset:3px;
+        }
+
+        footer{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:16px;
+            flex-wrap:wrap;
+            padding:40px var(--gutter);
+            border-top:1px solid var(--line);
+            font-size:12px;
+            letter-spacing:.14em;
+            text-transform:uppercase;
+            color:var(--ink-soft);
+        }
+
+        footer img{
+            width:72px;
+            height:auto;
+        }
+
+        @media (max-width:700px){
+
+            .types{
+                grid-template-columns:1fr;
+            }
+
+            .grid{
+                grid-template-columns:1fr;
+            }
+
+            .btn{
+                justify-self:stretch;
+                justify-content:center;
+            }
+
+            footer{
+                justify-content:center;
+                text-align:center;
+            }
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <div class="bg-photo"></div>
+    <div class="bg-overlay"></div>
+
+    <header class="top">
+        <a href="index.html" aria-label="Zahabu — home"><img src="images/logo-wordmark.png" alt="Zahabu"></a>
+        <a class="back" href="index.html">← Back to site</a>
+    </header>
+
+    <main>
+        <form class="card" id="vendorForm" novalidate>
+            <span class="eyebrow">Vendors</span>
+            <h1>Sell or partner at Zahabu</h1>
+            <p class="intro">We host food, drink and makers' stalls on the rooftop, and work with brands that share our values. Tell us about your business and our team will get back to you.</p>
+
+            <!-- Keep these values in sync with VENDOR_TYPES in photos-worker.mjs. -->
+            <h2>What kind of vendor are you?</h2>
+            <fieldset class="types">
+                <legend class="trap">Vendor type</legend>
+                <label class="type">
+                    <input type="radio" name="vendor_type" value="Food &amp; drink stall" checked>
+                    <strong>Food &amp; drink stall</strong>
+                    <span>Street food, snacks, coffee, juices and other bites for our guests.</span>
+                </label>
+                <label class="type">
+                    <input type="radio" name="vendor_type" value="Market stall">
+                    <strong>Market stall</strong>
+                    <span>Makers and sellers: crafts, clothing, art, records, jewellery and more.</span>
+                </label>
+                <label class="type">
+                    <input type="radio" name="vendor_type" value="Sponsor / brand partner">
+                    <strong>Sponsor / brand partner</strong>
+                    <span>Sponsorship, brand activations and partnerships for our nights.</span>
+                </label>
+            </fieldset>
+
+            <h2>About you</h2>
+            <div class="grid">
+                <div class="field">
+                    <label for="business">Business or brand name</label>
+                    <input type="text" id="business" name="business" maxlength="100" autocomplete="organization" required>
+                </div>
+                <div class="field">
+                    <label for="name">Your name</label>
+                    <input type="text" id="name" name="name" maxlength="100" autocomplete="name" required>
+                </div>
+                <div class="field">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" maxlength="200" autocomplete="email" required>
+                </div>
+                <div class="field">
+                    <label for="phone">Phone / WhatsApp</label>
+                    <input type="tel" id="phone" name="phone" maxlength="20" autocomplete="tel" placeholder="+254 7…" required>
+                </div>
+                <div class="field wide">
+                    <label for="links">Instagram, TikTok or website (optional)</label>
+                    <input type="text" id="links" name="links" maxlength="300" placeholder="@yourbrand or yourbrand.co.ke">
+                </div>
+            </div>
+
+            <h2>Your business</h2>
+            <div class="grid">
+                <!-- Keep these values in sync with VENDOR_NIGHTS in photos-worker.mjs. -->
+                <fieldset class="field wide">
+                    <legend class="legend">Which nights interest you? (optional)</legend>
+                    <div class="choices">
+                        <label class="chip"><input type="checkbox" name="nights" value="Tue: Textures / Interlude">Tue · Textures / Interlude</label>
+                        <label class="chip"><input type="checkbox" name="nights" value="Wed: Jirani">Wed · Jirani</label>
+                        <label class="chip"><input type="checkbox" name="nights" value="Thu: RnB Live">Thu · RnB Live</label>
+                        <label class="chip"><input type="checkbox" name="nights" value="Fri: Zahabu Sundowner">Fri · Zahabu Sundowner</label>
+                        <label class="chip"><input type="checkbox" name="nights" value="Special events">Special events</label>
+                    </div>
+                </fieldset>
+                <fieldset class="field wide" id="powerField">
+                    <legend class="legend">Does your stall need electricity?</legend>
+                    <div class="choices">
+                        <label class="chip"><input type="radio" name="power" value="Yes">Yes</label>
+                        <label class="chip"><input type="radio" name="power" value="No">No</label>
+                        <label class="chip"><input type="radio" name="power" value="Not sure">Not sure</label>
+                    </div>
+                </fieldset>
+                <div class="field wide">
+                    <label for="message" id="messageLabel">Tell us about your business</label>
+                    <textarea id="message" name="message" rows="6" maxlength="1500" required></textarea>
+                    <p class="word-count" id="words" aria-live="polite">25 to 100 words</p>
+                </div>
+                <div class="field wide">
+                    <span class="legend" id="photosLabel">Photos (optional, up to 3)</span>
+                    <label class="photo-pick" id="photoPick">
+                        <input type="file" id="photoFiles" accept="image/*" multiple aria-labelledby="photosLabel">
+                        <span>+ Add photos of your products or stall</span>
+                    </label>
+                    <div class="previews" id="previews"></div>
+                    <p class="hint">We shrink photos on your phone before sending, so they use little data.</p>
+                </div>
+
+                <!-- Honeypot: hidden from people, filled in by bots. -->
+                <div class="trap" aria-hidden="true">
+                    <label for="website">Website</label>
+                    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+                </div>
+                <div class="wide" id="turnstileBox"></div>
+                <p class="status wide" id="status" role="status" aria-live="polite"></p>
+                <button type="submit" class="btn" id="submit">Send enquiry</button>
+            </div>
+
+            <p class="small">Not a vendor? Use the <a href="index.html#contact">general contact form</a> for bookings, artists and press.</p>
+        </form>
+    </main>
+
+    <footer>
+        <img src="images/logo-wordmark.png" alt="Zahabu">
+        <a href="code-of-conduct.html">Code of conduct</a>
+        <span>© 2026 Zahabu Culture Garden</span>
+    </footer>
+
+    <script>
+        // Served by the zahabu-photos Worker (photos-worker.mjs, POST /api/vendors); `node preview.mjs` runs it on :5173 locally.
+        const isLocal = ["localhost", "127.0.0.1"].includes(location.hostname);
+        const API = isLocal ? (location.port === "5173" ? "" : "http://localhost:5173") : "https://photos.zahabu.co.ke";
+        const TURNSTILE_SITE_KEY = isLocal ? "1x00000000000000000000AA" : "0x4AAAAAAFHmoNtXVh4PIyD2";
+        const MIN_WORDS = 25;
+        const MAX_WORDS = 100;
+        const MAX_PHOTOS = 3;
+        const STALL_TYPES = ["Food & drink stall", "Market stall"];
+        const PLACEHOLDERS = {
+            "Food & drink stall":"What do you cook or serve, your prices, how long you've been trading, and what setup you bring (tent, table, gas, fridge…).",
+            "Market stall":"What you make or sell, your price range, how long you've been trading, and what setup you bring (table, rails, tent…).",
+            "Sponsor / brand partner":"Your brand, what kind of partnership you have in mind, which nights or audiences you'd like to reach, and your timeline."
+        };
+
+        const form = document.getElementById("vendorForm");
+        const message = document.getElementById("message");
+        const words = document.getElementById("words");
+        const statusLine = document.getElementById("status");
+        const submit = document.getElementById("submit");
+        const powerField = document.getElementById("powerField");
+        const photoPick = document.getElementById("photoPick");
+        const photoFiles = document.getElementById("photoFiles");
+        const previews = document.getElementById("previews");
+        let photos = [];
+
+        function setStatus(text, kind = ""){
+            statusLine.textContent = text;
+            statusLine.className = `status wide${kind ? ` is-${kind}` : ""}`;
+        }
+
+        // Is the email side set up? Same check the landing page's contact form uses.
+        fetch(`${API}/api/contact`).then(r => r.json()).then(body => {
+            if (!body.ready) setStatus("The vendor form isn't available right now. Please try again later.", "error");
+        }).catch(() => setStatus("Couldn't reach our server. Check your connection and refresh the page.", "error"));
+
+        const vendorType = () => form.querySelector('input[name="vendor_type"]:checked').value;
+        function updateType(){
+            const type = vendorType();
+            const stall = STALL_TYPES.includes(type);
+            powerField.hidden = !stall;
+            message.placeholder = PLACEHOLDERS[type];
+            document.getElementById("messageLabel").textContent = stall ? "Tell us about your business" : "Tell us about your brand and idea";
+        }
+        form.querySelectorAll('input[name="vendor_type"]').forEach(input => input.addEventListener("change", updateType));
+        updateType();
+
+        const wordCount = () => message.value.split(/\s+/).filter(Boolean).length;
+        function updateWordCount(){
+            const n = wordCount();
+            words.textContent = n === 0 ? `${MIN_WORDS} to ${MAX_WORDS} words`
+                : n < MIN_WORDS ? `${n} of ${MIN_WORDS} words minimum`
+                : n > MAX_WORDS ? `${n} words: please cut to ${MAX_WORDS}`
+                : `${n} of ${MAX_WORDS} words`;
+            words.classList.toggle("is-enough", n >= MIN_WORDS && n <= MAX_WORDS);
+            words.classList.toggle("is-over", n > MAX_WORDS);
+        }
+        message.addEventListener("input", updateWordCount);
+
+        // Turnstile's script is only fetched once someone starts filling in the form, to save visitors' data.
+        let turnstileId = null;
+        function loadTurnstile(){
+            if (turnstileId !== null) return;
+            turnstileId = "loading";
+            window.onTurnstileLoad = () => { turnstileId = turnstile.render("#turnstileBox", { sitekey:TURNSTILE_SITE_KEY, theme:"light" }); };
+            const script = document.createElement("script");
+            script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad";
+            script.async = true;
+            document.head.append(script);
+        }
+        const turnstileToken = () => turnstileId !== null && turnstileId !== "loading" ? turnstile.getResponse(turnstileId) || "" : "";
+        const resetTurnstile = () => { if (turnstileId !== null && turnstileId !== "loading") turnstile.reset(turnstileId); };
+        form.addEventListener("focusin", loadTurnstile);
+
+        // Re-encoding through a canvas shrinks the photo and drops all EXIF data (GPS, camera, timestamps).
+        async function shrink(file){
+            if (file.size > 40 * 1024 * 1024) throw new Error(`${file.name} is too large.`);
+            let bitmap;
+            try {
+                bitmap = await createImageBitmap(file);
+            } catch {
+                throw new Error(`Couldn't read ${file.name}. Try a JPEG or PNG.`);
+            }
+            try {
+                const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+                const canvas = document.createElement("canvas");
+                canvas.width = Math.round(bitmap.width * scale);
+                canvas.height = Math.round(bitmap.height * scale);
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#fff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                for (let q = .8; q >= .4; q -= .1) {
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", q));
+                    if (blob && blob.size <= 1400 * 1024) return blob;
+                }
+                throw new Error(`${file.name} is too large.`);
+            } finally {
+                bitmap.close();
+            }
+        }
+
+        function renderPreviews(){
+            previews.replaceChildren(...photos.map((photo, index) => {
+                const tile = document.createElement("div");
+                tile.className = "preview";
+                const img = document.createElement("img");
+                img.src = photo.url;
+                img.alt = `Photo ${index + 1}`;
+                const remove = document.createElement("button");
+                remove.type = "button";
+                remove.textContent = "×";
+                remove.setAttribute("aria-label", `Remove photo ${index + 1}`);
+                remove.addEventListener("click", () => {
+                    URL.revokeObjectURL(photo.url);
+                    photos.splice(index, 1);
+                    renderPreviews();
+                });
+                tile.append(img, remove);
+                return tile;
+            }));
+            photoPick.hidden = photos.length >= MAX_PHOTOS;
+        }
+
+        photoFiles.addEventListener("change", async () => {
+            const picked = [...photoFiles.files];
+            photoFiles.value = "";
+            const room = MAX_PHOTOS - photos.length;
+            if (picked.length > room) setStatus(`You can add up to ${MAX_PHOTOS} photos.`, "error");
+            else setStatus("Preparing photos…");
+            for (const file of picked.slice(0, room)) {
+                try {
+                    const blob = await shrink(file);
+                    photos.push({ blob, url:URL.createObjectURL(blob) });
+                    renderPreviews();
+                } catch (error) {
+                    return setStatus(error.message, "error");
+                }
+            }
+            if (picked.length <= room) setStatus("");
+        });
+
+        form.addEventListener("submit", async e => {
+            e.preventDefault();
+            const value = id => document.getElementById(id).value.trim();
+            if (!value("business")) return setStatus("Please enter your business or brand name.", "error");
+            if (!value("name")) return setStatus("Please enter your name.", "error");
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value("email"))) return setStatus("Please enter a valid email address.", "error");
+            if (!/^\+?[0-9 ()-]{7,20}$/.test(value("phone"))) return setStatus("Please enter a phone or WhatsApp number we can reach you on.", "error");
+            const stall = STALL_TYPES.includes(vendorType());
+            if (stall && !form.querySelector('input[name="power"]:checked')) return setStatus("Please tell us if your stall needs electricity.", "error");
+            const n = wordCount();
+            if (n < MIN_WORDS) return setStatus(`Please tell us about your business in at least ${MIN_WORDS} words (you have ${n}).`, "error");
+            if (n > MAX_WORDS) return setStatus(`Please keep the description to ${MAX_WORDS} words or fewer (you have ${n}).`, "error");
+            loadTurnstile();
+            const token = turnstileToken();
+            if (!token) return setStatus("Please wait for the spam check to finish, then try again.", "error");
+
+            const body = new FormData(form);
+            if (!stall) body.delete("power");
+            body.append("cf-turnstile-response", token);
+            photos.forEach((photo, i) => body.append(`photo_${i}`, photo.blob, `photo-${i}.jpg`));
+
+            submit.disabled = true;
+            setStatus(photos.length ? "Sending your enquiry and photos…" : "Sending…");
+            try {
+                const response = await fetch(`${API}/api/vendors`, { method:"POST", body });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(result.error || "Sending failed. Please try again.");
+                form.reset();
+                photos.forEach(photo => URL.revokeObjectURL(photo.url));
+                photos = [];
+                renderPreviews();
+                updateType();
+                updateWordCount();
+                setStatus("Thank you! We got your enquiry. Our team will get back to you by email or WhatsApp.", "success");
+            } catch (error) {
+                setStatus(error.message === "Failed to fetch" ? "Couldn't reach our server. Check your connection and try again." : error.message, "error");
+            } finally {
+                submit.disabled = false;
+                resetTurnstile();
+            }
+        });
+    </script>
+
+</body>
+</html>

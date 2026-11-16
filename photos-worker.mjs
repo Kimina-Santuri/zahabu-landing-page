@@ -1,6 +1,7 @@
 // Community photo submissions for zahabu.co.ke, served from photos.zahabu.co.ke.
 // Public:  GET /api/photos (approved list), POST /api/photos (submit, held as pending), GET /media/{thumb|full}/<id>.jpg (approved only)
 //          GET /api/contact (is the form ready?), POST /api/contact (contact form: saved to D1, emailed to info@zahabu.co.ke)
+//          POST /api/vendors (vendor enquiry from vendors.html, up to 3 photos: saved to D1 + R2, emailed to info@zahabu.co.ke)
 // Staff:   everything under /admin, gated by Cloudflare Access (verified here too, fail-closed)
 
 const MAX_PHOTOS_PER_SUBMISSION = 5;
@@ -14,6 +15,14 @@ const CONTACT_MIN_WORDS = 25;
 const CONTACT_MAX_WORDS = 100;
 const CONTACT_MAX_CHARS = 1500;
 const MAX_CONTACTS_PER_IP_PER_HOUR = 5;
+// Keep these lists in sync with vendors.html.
+const VENDOR_TYPES = ['Food & drink stall', 'Market stall', 'Sponsor / brand partner'];
+const VENDOR_STALL_TYPES = ['Food & drink stall', 'Market stall'];
+const VENDOR_NIGHTS = ['Tue: Textures / Interlude', 'Wed: Jirani', 'Thu: RnB Live', 'Fri: Zahabu Sundowner', 'Special events'];
+const VENDOR_POWER = ['Yes', 'No', 'Not sure'];
+const MAX_VENDOR_PHOTOS = 3;
+const MAX_VENDOR_PHOTO_BYTES = 1536 * 1024;
+const MAX_VENDORS_PER_IP_PER_HOUR = 5;
 
 const encoder = new TextEncoder();
 
@@ -291,6 +300,153 @@ async function submitContact(request, env, url) {
   return json({ok:true}, 201, cors);
 }
 
+// ---------- Vendor enquiries (vendors.html) ----------
+
+// Returns {fields} or {error}. Same header safety as readContact: single-line fields have newlines collapsed.
+function readVendor(form) {
+  const line = name => String(form.get(name) || '').replace(/\s+/g, ' ').trim();
+  const fields = {
+    type:line('vendor_type'),
+    business:line('business'),
+    name:line('name'),
+    email:line('email'),
+    phone:line('phone'),
+    links:line('links'),
+    nights:form.getAll('nights').map(String),
+    power:line('power'),
+    message:String(form.get('message') || '').replace(/\r\n?/g, '\n').trim(),
+  };
+  if (!VENDOR_TYPES.includes(fields.type)) return {error:'Please choose what kind of vendor you are.'};
+  if (!fields.business || fields.business.length > 100) return {error:'Please enter your business or brand name.'};
+  if (!fields.name || fields.name.length > 100) return {error:'Please enter your name.'};
+  if (fields.email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email)) return {error:'Please enter a valid email address.'};
+  if (!/^\+?[0-9 ()-]{7,20}$/.test(fields.phone)) return {error:'Please enter a phone or WhatsApp number we can reach you on.'};
+  if (fields.links.length > 300) return {error:'Please shorten your links.'};
+  if (fields.nights.some(night => !VENDOR_NIGHTS.includes(night)) || new Set(fields.nights).size !== fields.nights.length) return {error:'Please check the nights you picked.'};
+  if (VENDOR_STALL_TYPES.includes(fields.type)) {
+    if (!VENDOR_POWER.includes(fields.power)) return {error:'Please tell us if your stall needs electricity.'};
+  } else {
+    fields.power = '';
+  }
+  if (fields.message.length > CONTACT_MAX_CHARS) return {error:'Your description is too long. Please shorten it a little.'};
+  const words = countWords(fields.message);
+  if (words < CONTACT_MIN_WORDS) return {error:`Please tell us about your business in at least ${CONTACT_MIN_WORDS} words.`};
+  if (words > CONTACT_MAX_WORDS) return {error:`Please keep the description to ${CONTACT_MAX_WORDS} words or fewer.`};
+  return {fields};
+}
+
+function vendorEmail(fields, id, photoCount, env, origin) {
+  const rows = [
+    ['Type', fields.type],
+    ['Business', fields.business],
+    ['Name', fields.name],
+    ['Email', fields.email],
+    ['Phone / WhatsApp', fields.phone],
+    ['Links', fields.links || '-'],
+    ['Nights', fields.nights.join(', ') || '-'],
+    ...(fields.power ? [['Needs electricity', fields.power]] : []),
+    ['Photos', photoCount ? `${photoCount} (see link below)` : 'none'],
+  ];
+  return {
+    to:env.CONTACT_TO || 'info@zahabu.co.ke',
+    from:{email:env.CONTACT_FROM, name:'Zahabu website'},
+    replyTo:{email:fields.email, name:fields.name},
+    subject:`Vendor: ${fields.type} - ${fields.business} (${fields.name})`.slice(0, 200),
+    text:`${rows.map(([label, value]) => `${label}: ${value}`).join('\n')}\n\n${fields.message}\n\n`
+      + `See this enquiry${photoCount ? ' and its photos' : ''} online (staff sign-in with Zoho): ${origin}/admin/vendors/${id}\n\n`
+      + `--\nSent from the vendor form on zahabu.co.ke/vendors.html. Reply to this email to answer ${fields.name} directly.\n`,
+  };
+}
+
+async function submitVendor(request, env, url) {
+  const cors = corsHeaders(request, env);
+  const origin = request.headers.get('origin');
+  if (origin !== url.origin && !allowedOrigins(env).includes(origin)) return json({error:'Enquiries are only accepted from zahabu.co.ke.'}, 403, cors);
+  if (!env.CONTACT_EMAIL || !env.CONTACT_FROM) return json({error:'The vendor form is not available right now. Please try again later.'}, 503, cors);
+  if (Number(request.headers.get('content-length') || 0) > MAX_VENDOR_PHOTOS * MAX_VENDOR_PHOTO_BYTES + 64 * 1024) return json({error:'That is too large to send. Try fewer or smaller photos.'}, 413, cors);
+
+  let form;
+  try { form = await request.formData(); } catch { return json({error:'Could not read the form.'}, 400, cors); }
+  if (String(form.get('website') || '')) return json({ok:true}, 201, cors);
+
+  const {fields, error} = readVendor(form);
+  if (error) return json({error}, 400, cors);
+
+  const photos = [];
+  for (let index = 0; index < MAX_VENDOR_PHOTOS; index++) {
+    const file = form.get(`photo_${index}`);
+    if (!file) break;
+    if (!(file instanceof File)) return json({error:'Could not read one of the photos.'}, 400, cors);
+    if (file.size > MAX_VENDOR_PHOTO_BYTES) return json({error:'One of the photos is too large.'}, 413, cors);
+    const jpeg = sanitizeJpeg(new Uint8Array(await file.arrayBuffer()));
+    if (!jpeg) return json({error:'Photos must be JPEG images.'}, 400, cors);
+    if (jpeg.width > 4000 || jpeg.height > 4000) return json({error:'One of the photos is too large.'}, 413, cors);
+    photos.push(jpeg);
+  }
+  if (form.has(`photo_${MAX_VENDOR_PHOTOS}`)) return json({error:`You can add up to ${MAX_VENDOR_PHOTOS} photos.`}, 400, cors);
+
+  const ip = request.headers.get('cf-connecting-ip') || '';
+  if (!(await verifyTurnstile(form.get('cf-turnstile-response'), ip, env))) return json({error:'Spam check failed. Please try again.'}, 400, cors);
+
+  const ipHash = await hashIp(ip, env);
+  const hourAgo = new Date(Date.now() - 3600_000).toISOString();
+  const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM vendor_enquiries WHERE ip_hash = ? AND created_at > ?').bind(ipHash, hourAgo).first();
+  if ((recent?.n || 0) >= MAX_VENDORS_PER_IP_PER_HOUR) return json({error:'You have sent several enquiries in the last hour. Please try again later.'}, 429, cors);
+
+  // Photos and the row are saved before sending, so an enquiry is never lost if the email fails.
+  const id = crypto.randomUUID();
+  for (const [index, photo] of photos.entries()) {
+    await env.PHOTOS.put(`vendors/${id}/${index}.jpg`, photo.bytes, {httpMetadata:{contentType:'image/jpeg'}});
+  }
+  await env.DB.prepare('INSERT INTO vendor_enquiries (id, vendor_type, business, name, email, phone, links, nights, power, message, photo_count, ip_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, fields.type, fields.business, fields.name, fields.email, fields.phone, fields.links, fields.nights.join(', '), fields.power, fields.message, photos.length, ipHash, new Date().toISOString()).run();
+  try {
+    await env.CONTACT_EMAIL.send(vendorEmail(fields, id, photos.length, env, url.origin));
+  } catch (sendError) {
+    console.error('Vendor email failed', JSON.stringify({id, code:sendError?.code, message:String(sendError?.message || sendError)}));
+    await env.DB.prepare('UPDATE vendor_enquiries SET email_error = ? WHERE id = ?').bind(String(sendError?.code || sendError?.message || 'send failed').slice(0, 200), id).run();
+    return json({error:'We could not send your enquiry right now. Please try again in a few minutes.'}, 502, cors);
+  }
+  await env.DB.prepare('UPDATE vendor_enquiries SET emailed_at = ? WHERE id = ?').bind(new Date().toISOString(), id).run();
+  return json({ok:true}, 201, cors);
+}
+
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'})[char]);
+
+// Staff view of one enquiry, linked from its email. Plain server-rendered page: no scripts.
+async function vendorPage(env, id) {
+  const row = await env.DB.prepare('SELECT * FROM vendor_enquiries WHERE id = ?').bind(id).first();
+  if (!row) return new Response('That enquiry no longer exists.', {status:404});
+  const rows = [
+    ['Type', row.vendor_type], ['Business', row.business], ['Name', row.name],
+    ['Email', `<a href="mailto:${escapeHtml(row.email)}">${escapeHtml(row.email)}</a>`, true],
+    ['Phone / WhatsApp', row.phone], ['Links', row.links || '-'], ['Nights', row.nights || '-'],
+    ...(row.power ? [['Needs electricity', row.power]] : []),
+    ['Received', new Date(row.created_at).toLocaleString('en-GB', {timeZone:'Africa/Nairobi', dateStyle:'medium', timeStyle:'short'})],
+  ];
+  const photos = Array.from({length:row.photo_count}, (_, n) => `<a href="/admin/vendor-media/${id}/${n}.jpg" target="_blank"><img src="/admin/vendor-media/${id}/${n}.jpg" alt="Photo ${n + 1}" loading="lazy"></a>`).join('');
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Vendor: ${escapeHtml(row.business)}</title>
+<style>body{margin:0;padding:24px 16px 48px;font:16px/1.6 system-ui,sans-serif;color:#141814;background:#e9f0ea}main{max-width:760px;margin:0 auto;background:#fff;border-radius:18px;padding:clamp(20px,5vw,40px)}
+h1{margin:0 0 4px;font-size:26px;font-weight:600}.eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#5f6a63}dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 18px;margin:24px 0}
+dt{color:#5f6a63}dd{margin:0;overflow-wrap:anywhere}p.msg{white-space:pre-wrap;border-top:1px solid #dde3de;padding-top:20px}.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:24px}
+.photos img{width:100%;border-radius:12px;display:block}a{color:#2f5d3a}@media(max-width:480px){dl{grid-template-columns:1fr}dt{margin-top:8px}}</style></head>
+<body><main><span class="eyebrow">Vendor enquiry</span><h1>${escapeHtml(row.business)}</h1><dl>${rows.map(([label, value, raw]) => `<dt>${label}</dt><dd>${raw ? value : escapeHtml(value)}</dd>`).join('')}</dl>
+<p class="msg">${escapeHtml(row.message)}</p>${photos ? `<div class="photos">${photos}</div>` : '<p>No photos were attached.</p>'}</main></body></html>`;
+  return new Response(html, {headers:{
+    'Content-Type':'text/html; charset=utf-8',
+    'Content-Security-Policy':"default-src 'none'; img-src 'self'; style-src 'unsafe-inline'",
+    'X-Content-Type-Options':'nosniff',
+    'X-Frame-Options':'DENY',
+    'Cache-Control':'private, no-store',
+  }});
+}
+
+async function vendorMedia(env, id, index) {
+  const object = await env.PHOTOS.get(`vendors/${id}/${index}.jpg`);
+  if (!object) return new Response('Not found', {status:404});
+  return new Response(object.body, {headers:{'Content-Type':'image/jpeg', 'X-Content-Type-Options':'nosniff', 'Cache-Control':'private, no-store'}});
+}
+
 async function serveMedia(env, size, id, {requireApproved}) {
   if (!['thumb', 'full'].includes(size) || !ID_PATTERN.test(id)) return new Response('Not found', {status:404});
   if (requireApproved) {
@@ -313,6 +469,11 @@ async function handleAdmin(request, env, url) {
 
   const mediaMatch = url.pathname.match(/^\/admin\/media\/(thumb|full)\/([0-9a-f-]{36})\.jpg$/);
   if (mediaMatch && request.method === 'GET') return serveMedia(env, mediaMatch[1], mediaMatch[2], {requireApproved:false});
+
+  const vendorMatch = url.pathname.match(/^\/admin\/vendors\/([0-9a-f-]{36})$/);
+  if (vendorMatch && request.method === 'GET') return vendorPage(env, vendorMatch[1]);
+  const vendorMediaMatch = url.pathname.match(/^\/admin\/vendor-media\/([0-9a-f-]{36})\/([0-2])\.jpg$/);
+  if (vendorMediaMatch && request.method === 'GET') return vendorMedia(env, vendorMediaMatch[1], vendorMediaMatch[2]);
 
   if (url.pathname === '/admin/api/photos' && request.method === 'GET') {
     const status = url.searchParams.get('status') === 'approved' ? 'approved' : 'pending';
@@ -374,6 +535,12 @@ export default {
         // The landing page only shows the form once this says the email binding is set up.
         if (request.method === 'GET') return json({ready:Boolean(env.CONTACT_EMAIL && env.CONTACT_FROM)}, 200, {...corsHeaders(request, env), 'Cache-Control':'public, max-age=300'});
         if (request.method === 'POST') return await submitContact(request, env, url);
+        return json({error:'Method not allowed.'}, 405);
+      }
+
+      if (url.pathname === '/api/vendors') {
+        if (request.method === 'OPTIONS') return new Response(null, {status:204, headers:{...corsHeaders(request, env), 'Access-Control-Allow-Methods':'POST', 'Access-Control-Max-Age':'86400'}});
+        if (request.method === 'POST') return await submitVendor(request, env, url);
         return json({error:'Method not allowed.'}, 405);
       }
 

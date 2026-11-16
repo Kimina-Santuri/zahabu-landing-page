@@ -181,6 +181,74 @@ for (let i = 0; i < 4; i++) assert.equal((await contact(contactForm({message:wor
 assert.equal((await contact(contactForm())).status, 429, 'contact per-IP hourly limit');
 console.log('Verified contact form: readiness flag, origin, validation (25 to 100 words), spam check, honeypot, header safety, saved before sending, email failure, and rate limiting.');
 
+// ---------- Vendor enquiries ----------
+
+db.exec(await readFile('migrations/0006_vendor_enquiries.sql','utf8'));
+sent.length = 0;
+const vendorForm = (overrides={}, photos=[]) => {
+  const form = new FormData();
+  const values = {vendor_type:'Food & drink stall', business:'Mama Njeri Bites', name:'Njeri W.', email:'njeri@example.com', phone:'+254 711 000000', links:'@mamanjeri', power:'Yes', message:words(40), 'cf-turnstile-response':'good-token', ...overrides};
+  for (const [key, value] of Object.entries(values)) if (value !== undefined) form.append(key, value);
+  for (const night of overrides.nightsList || ['Wed: Jirani', 'Fri: Zahabu Sundowner']) form.append('nights', night);
+  photos.forEach((bytes, i) => form.append(`photo_${i}`, new File([bytes], `p${i}.jpg`, {type:'image/jpeg'})));
+  return form;
+};
+const vendor = (form, env=contactEnv, origin='https://zahabu.co.ke', ip='198.51.100.20') => photosWorker.fetch(new Request(photosOrigin+'/api/vendors',{method:'POST',headers:{origin,'cf-connecting-ip':ip},body:form}),env);
+const vendorRows = () => db.prepare('SELECT * FROM vendor_enquiries').all();
+
+assert.equal((await vendor(vendorForm(), photoEnv)).status, 503, 'vendor form needs the email binding');
+assert.equal((await vendor(vendorForm(), contactEnv, 'https://elsewhere.example')).status, 403);
+assert.equal((await vendor(vendorForm({vendor_type:'Caterer'}))).status, 400, 'unknown vendor type');
+assert.equal((await vendor(vendorForm({business:''}))).status, 400);
+assert.equal((await vendor(vendorForm({phone:''}))).status, 400, 'phone is required for vendors');
+assert.equal((await vendor(vendorForm({power:undefined}))).status, 400, 'stalls must answer the electricity question');
+assert.equal((await vendor(vendorForm({nightsList:['Mon: Nothing']}))).status, 400, 'unknown night');
+assert.equal((await vendor(vendorForm({message:words(24)}))).status, 400);
+assert.equal((await vendor(vendorForm({message:words(101)}))).status, 400);
+assert.equal((await vendor(vendorForm({}, [new TextEncoder().encode('<svg>')]))).status, 400, 'photos must be JPEG');
+assert.equal((await vendor(vendorForm({}, Array.from({length:4},()=>jpeg(800,600))))).status, 400, 'at most 3 photos');
+assert.equal((await vendor(vendorForm({'cf-turnstile-response':'bad-token'}))).status, 400);
+assert.equal((await vendor(vendorForm({website:'spam'}))).status, 201, 'vendor honeypot looks like success');
+assert.equal(vendorRows().length + sent.length, 0, 'nothing stored or sent for rejected vendor enquiries');
+
+const bucketBefore = bucket.size;
+const vendorOk = await vendor(vendorForm({business:'Mama Njeri\r\nBites'}, [jpeg(1600,1200), jpeg(1200,1600)]));
+assert.equal(vendorOk.status, 201);
+assert.equal(sent.length, 1);
+assert.ok(sent[0].subject.startsWith('Vendor: Food & drink stall - Mama Njeri Bites') && !/[\r\n]/.test(sent[0].subject));
+assert.deepEqual(sent[0].replyTo, {email:'njeri@example.com', name:'Njeri W.'});
+const [vendorRow] = vendorRows();
+assert.equal(vendorRow.photo_count, 2);
+assert.equal(vendorRow.nights, 'Wed: Jirani, Fri: Zahabu Sundowner');
+assert.ok(vendorRow.emailed_at && !vendorRow.email_error);
+assert.ok(sent[0].text.includes(`${photosOrigin}/admin/vendors/${vendorRow.id}`) && sent[0].text.includes('Needs electricity: Yes'));
+assert.equal(bucket.size, bucketBefore + 2);
+assert.ok(!hasText(bucket.get(`vendors/${vendorRow.id}/0.jpg`), 'GPS'), 'vendor photos are stripped of metadata');
+
+const sponsorOk = await vendor(vendorForm({vendor_type:'Sponsor / brand partner', power:'Yes', nightsList:[]}));
+assert.equal(sponsorOk.status, 201);
+assert.equal(vendorRows().find(row => row.vendor_type === 'Sponsor / brand partner').power, '', 'sponsors have no electricity answer');
+assert.ok(!sent[1].text.includes('Needs electricity'));
+
+// Staff view: behind Access, escapes what vendors typed, and serves the photos only under /admin.
+assert.equal((await photosWorker.fetch(new Request(`${photosOrigin}/admin/vendors/${vendorRow.id}`),photoEnv)).status, 403, 'vendor page needs staff sign-in');
+assert.equal((await photosWorker.fetch(new Request(`${photosOrigin}/media/full/${vendorRow.id}.jpg`),photoEnv)).status, 404, 'vendor photos are not public');
+await vendor(vendorForm({business:'<script>alert(1)</script>', message:`<img src=x onerror=alert(1)> ${words(30)}`}), contactEnv, 'https://zahabu.co.ke', '198.51.100.21');
+const xssRow = vendorRows().find(row => row.business.startsWith('<script>'));
+const vendorHtml = await (await admin(`/admin/vendors/${xssRow.id}`)).text();
+assert.ok(!vendorHtml.includes('<script>alert') && !vendorHtml.includes('<img src=x') && vendorHtml.includes('&lt;script&gt;'), 'vendor page escapes input');
+const vendorPageHtml = await (await admin(`/admin/vendors/${vendorRow.id}`)).text();
+assert.ok(vendorPageHtml.includes(`/admin/vendor-media/${vendorRow.id}/1.jpg`) && !vendorPageHtml.includes('/2.jpg'));
+assert.equal((await admin(`/admin/vendor-media/${vendorRow.id}/0.jpg`)).status, 200);
+assert.equal((await admin(`/admin/vendor-media/${vendorRow.id}/2.jpg`)).status, 404);
+assert.equal((await admin('/admin/vendors/00000000-0000-0000-0000-000000000000')).status, 404);
+
+assert.equal((await vendor(vendorForm({name:'FAIL vendor'}), contactEnv, 'https://zahabu.co.ke', '198.51.100.22')).status, 502);
+assert.equal(vendorRows().find(row => row.name === 'FAIL vendor').email_error, 'E_DELIVERY_FAILED', 'vendor enquiry kept when the email fails');
+for (let i = 0; i < 3; i++) assert.equal((await vendor(vendorForm())).status, 201);
+assert.equal((await vendor(vendorForm())).status, 429, 'vendor per-IP hourly limit');
+console.log('Verified vendor form: origin, validation, photos (JPEG only, max 3, metadata stripped, staff-only), staff page escaping, email failure, and rate limiting.');
+
 // Cloudflare Access tokens: signed by the team's key, right audience, not expired
 const keyPair = await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify']);
 const publicJwk = {...await crypto.subtle.exportKey('jwk',keyPair.publicKey),kid:'test-kid'};
