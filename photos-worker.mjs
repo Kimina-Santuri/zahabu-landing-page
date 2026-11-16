@@ -246,7 +246,7 @@ function readContact(form) {
   return {fields};
 }
 
-function contactEmail(fields, env, origin) {
+export function contactEmail(fields, env, origin) {
   const rows = [
     ['Name', fields.name],
     ['Email', fields.email],
@@ -339,7 +339,7 @@ function readVendor(form) {
   return {fields};
 }
 
-function vendorEmail(fields, id, photoCount, env, origin) {
+export function vendorEmail(fields, id, photoCount, env, origin) {
   const rows = [
     ['Type', fields.type],
     ['Business', fields.business],
