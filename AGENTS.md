@@ -125,7 +125,7 @@ Four things that share source files but are **not** deployed the same way. Read 
 - `build.mjs` — bundles every file listed in its `paths` array as base64 into `dist/server/index.js` (prepended with `worker.mjs`'s source), plus copies `.openai/hosting.json` and `drizzle/` into `dist/.openai/`
 - `db/schema.ts` — Drizzle ORM schema (single `work_dates` table)
 - `drizzle.config.ts` / `drizzle/` — output of `drizzle-kit generate`; copied into the build for hosted deploys
-- `migrations/`: the actual D1 migration sequence, all applied to the live database (`0001_initial.sql`, `0002_entry_details.sql`, `0003_community_photos.sql`, `0004_inventory.sql`; `0005_contact_messages.sql`, applied 2026-10-27; `0006_vendor_enquiries.sql`, written 2026-11-16, **not yet applied**). Separate from `drizzle/`, which is a stale snapshot
+- `migrations/`: the actual D1 migration sequence, all applied to the live database (`0001_initial.sql`, `0002_entry_details.sql`, `0003_community_photos.sql`, `0004_inventory.sql`; `0005_contact_messages.sql`, applied 2026-10-27; `0006_vendor_enquiries.sql`, applied 2026-11-16). Separate from `drizzle/`, which is a stale snapshot
 - `verify.mjs` — sanity checks for persistence/validation logic
 - `preview.mjs` — local dev servers (`http://localhost:5173` for site/tracker/photos admin, `:5174` for the inventory) using a throwaway SQLite DB in `/private/tmp/zahabu-tracker-preview.sqlite` (delete it for a fresh start); applies `drizzle/` then the `migrations/` files it needs; never touches hosted records
 - `wrangler.toml` — config for the live `zahabu-tech-tracker` Worker (tracker + viewer) and its D1 binding
@@ -165,4 +165,4 @@ Opening any HTML file directly (`file://`) does not provide database access — 
 
 - Changed: new `vendors.html`, `POST /api/vendors` and staff page `/admin/vendors/<id>` in `photos-worker.mjs`, `migrations/0006_vendor_enquiries.sql`, links from `index.html` (contact intro + footer), `build.mjs`, `sitemap.xml`, `preview.mjs`, vendor tests in `verify.mjs`. The user confirmed the contact form's emails reach info@ reliably.
 - Verified: `node verify.mjs` passes (validation, photo limits and metadata stripping, photos not public, staff page needs Access and escapes input, email failure, rate limit). In Chrome against `node preview.mjs`: a market-stall enquiry with a photo went through, the email text and the staff page with the photo looked right, and at 390px the layout stacks with no sideways scroll.
-- Not done yet: migration 0006 on the live D1, Worker deploy, push to GitHub Pages, a real test from a phone.
+- Live 2026-11-16: migration 0006 applied to the live D1, photos Worker deployed (version `b4f01d96`), pushed (f9d261f) and zahabu.co.ke/vendors.html serves. Live checks: a POST from another origin gets 403, and the staff page redirects to Access sign-in. Pending: the user's real test from their phone.
