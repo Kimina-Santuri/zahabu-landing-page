@@ -395,7 +395,18 @@ const site = (path, init={}, env=publicEnv) => photosWorker.fetch(new Request('h
 // Staff only, same-origin writes
 assert.equal((await photosWorker.fetch(new Request(photosOrigin+'/admin/api/stories'), {...storiesEnv, LOCAL_DEV:false})).status, 403, 'stories API needs sign-in');
 assert.equal((await staff('/admin/api/stories', {method:'POST', json:{title:'x'}, origin:'https://evil.example'})).status, 403, 'cross-site write blocked');
-assert.equal((await staff('/admin/stories')).status, 200, 'editor page served');
+const editorRedirect = await staff('/admin/stories');
+assert.equal(editorRedirect.status, 302, 'photos.zahabu.co.ke/admin/stories moves to comms.zahabu.co.ke');
+assert.equal(editorRedirect.headers.get('location'), 'https://comms.zahabu.co.ke/');
+const comms = (path, env=storiesEnv) => photosWorker.fetch(new Request('https://comms.zahabu.co.ke'+path), env);
+const commsHome = await comms('/');
+assert.equal(commsHome.status, 200, 'editor served at the root of comms.zahabu.co.ke');
+assert.match(await commsHome.text(), /stories\.js/);
+assert.equal((await comms('/', {...storiesEnv, LOCAL_DEV:false})).status, 403, 'comms.zahabu.co.ke needs staff sign-in');
+assert.equal((await comms('/admin/api/stories', {...storiesEnv, LOCAL_DEV:false})).status, 403);
+assert.equal((await comms('/admin/api/stories')).status, 200);
+assert.equal((await comms('/admin/messages')).headers.get('location'), 'https://photos.zahabu.co.ke/admin/messages');
+assert.equal((await comms('/random')).status, 404);
 assert.equal((await staff('/admin/stories.js')).status, 200);
 
 // Body is checked block by block: no HTML, no javascript: links, unknown embeds and block types dropped

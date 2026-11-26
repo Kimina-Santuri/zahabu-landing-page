@@ -764,7 +764,15 @@ window.addEventListener('hashchange', async () => {
     }
   }
   currentHash = location.hash;
-  route();
+  // On comms.zahabu.co.ke the editor is the whole site; Photos and Messages stay on photos.zahabu.co.ke.
+if (location.hostname === 'comms.zahabu.co.ke') {
+  for (const link of document.querySelectorAll('.nav a')) {
+    const path = link.getAttribute('href');
+    link.href = path === '/admin/stories' ? '/' : `https://photos.zahabu.co.ke${path}`;
+  }
+}
+
+route();
 });
 
 window.addEventListener('beforeunload', event => {

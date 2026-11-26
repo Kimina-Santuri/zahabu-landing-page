@@ -4,7 +4,7 @@
 //          POST /api/vendors (vendor enquiry from vendors.html, up to 3 photos: saved to D1 + R2, emailed to info@zahabu.co.ke)
 // Staff:   everything under /admin, gated by Cloudflare Access (verified here too, fail-closed):
 //          /admin (photo review), /admin/messages (contact + vendor enquiries), /admin/vendors/<id> (one vendor enquiry),
-//          /admin/stories (Stories editor and newsletter, see stories.mjs)
+//          /admin/stories (Stories editor and newsletter, see stories.mjs; its own address is comms.zahabu.co.ke, which this redirects to)
 // Stories: zahabu.co.ke/stories* is routed here too (wrangler.photos.toml); stories.mjs serves those pages.
 
 import { createStories } from './stories.mjs';
@@ -661,6 +661,7 @@ async function handleAdmin(request, env, url) {
   }});
 }
 
+const COMMS_HOST = 'comms.zahabu.co.ke';
 const stories = createStories({json, escapeHtml, verifyTurnstile, hashIp, sanitizeJpeg, allowedOrigins});
 export const storiesForTests = stories;
 
@@ -669,6 +670,14 @@ export default {
     const url = new URL(request.url);
     try {
       if (url.pathname === '/stories' || url.pathname.startsWith('/stories/')) return await stories.publicRoute(request, env, url);
+      // comms.zahabu.co.ke is the Stories editor's own address (same Access app as photos.zahabu.co.ke/admin).
+      if (url.hostname === COMMS_HOST) {
+        if (url.pathname === '/' || url.pathname === '/admin/stories') return await handleAdmin(request, env, new URL('/admin/stories', url));
+        if (url.pathname === '/admin' || url.pathname === '/admin/' || url.pathname === '/admin/messages') return Response.redirect(`https://photos.zahabu.co.ke${url.pathname}`, 302);
+        if (url.pathname.startsWith('/admin/')) return await handleAdmin(request, env, url);
+        return new Response('Not found', {status:404});
+      }
+      if (url.hostname === 'photos.zahabu.co.ke' && url.pathname === '/admin/stories') return Response.redirect(`https://${COMMS_HOST}/`, 302);
       if (url.hostname !== 'photos.zahabu.co.ke' && url.hostname.endsWith('zahabu.co.ke')) return new Response('Not found', {status:404});
       if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return await handleAdmin(request, env, url);
 

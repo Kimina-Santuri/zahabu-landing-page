@@ -8,6 +8,7 @@ preview_urls = false
 # zahabu.co.ke itself is GitHub Pages behind Cloudflare's proxy; only /stories* is sent to this Worker (stories.mjs).
 routes = [
   { pattern = "photos.zahabu.co.ke", custom_domain = true },
+  { pattern = "comms.zahabu.co.ke", custom_domain = true },   # Stories editor; covered by the same Access app as photos.zahabu.co.ke/admin
   { pattern = "zahabu.co.ke/stories*", zone_name = "zahabu.co.ke" },
   { pattern = "www.zahabu.co.ke/stories*", zone_name = "zahabu.co.ke" },
 ]
