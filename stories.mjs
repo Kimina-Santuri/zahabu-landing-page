@@ -147,6 +147,14 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
       : block.t === 'event' ? [block.title, block.place] : [block.text, block.caption].filter(Boolean)).join('\n');
   }
   const wordCount = blocks => bodyText(blocks).split(/\s+/).filter(Boolean).length;
+  // The story's opening lines for cards: paragraphs, quotes and notes in order, cut at a word boundary.
+  function excerpt(blocks, words = 28) {
+    const text = blocks.flatMap(b => b.t === 'p' || b.t === 'quote' ? [plainText(b.c)] : b.t === 'callout' || b.t === 'split' ? [b.text] : [])
+      .join(' ').replace(/\s+/g, ' ').trim();
+    const list = text.split(' ').filter(Boolean);
+    return list.length > words ? `${list.slice(0, words).join(' ').replace(/[,;:.!?\u2013\u2014-]+$/, '')}…` : list.join(' ');
+  }
+  const rowExcerpt = (row, words) => { try { return excerpt(JSON.parse(row.body || '[]'), words); } catch { return ''; } };
   const imageIds = story => [...new Set([story.cover_id, ...story.blocks.flatMap(b => b.t === 'img' || b.t === 'split' ? [b.id] : b.t === 'gallery' ? b.images.map(i => i.id) : [])].filter(Boolean))];
 
   async function imageSizes(env, ids) {
@@ -243,7 +251,7 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
       const dims = id => sizes[id] ? ` width="${sizes[id].width}" height="${sizes[id].height}"` : '';
       if (block.t === 'callout') return mode === 'feed' ? `<blockquote>${textHtml(block.text)}</blockquote>` : `<aside class="callout">${textHtml(block.text)}</aside>`;
       if (block.t === 'gallery') {
-        return `<figure class="gallery${block.images.length === 1 ? ' one' : block.images.length === 2 ? ' two' : ''}"><div class="gallery-grid">${block.images.map(image => `<a href="${mediaUrl(prefix, image.id, 1600)}" target="_blank" rel="noopener"><img src="${mediaUrl(prefix, image.id, 800)}"${dims(image.id)} alt="${esc(block.alt)}" loading="lazy" decoding="async"></a>`).join('')}</div>${block.caption ? `<figcaption>${esc(block.caption)}</figcaption>` : ''}</figure>`;
+        return `<figure class="gallery${({1:' one', 2:' two', 4:' four'})[block.images.length] || ''}"><div class="gallery-grid">${block.images.map(image => `<a href="${mediaUrl(prefix, image.id, 1600)}" target="_blank" rel="noopener"><img src="${mediaUrl(prefix, image.id, 800)}"${dims(image.id)} alt="${esc(block.alt)}" loading="lazy" decoding="async"></a>`).join('')}</div>${block.caption ? `<figcaption>${esc(block.caption)}</figcaption>` : ''}</figure>`;
       }
       if (block.t === 'split') {
         const img = `<img src="${mediaUrl(prefix, block.id, 1600)}" srcset="${mediaUrl(prefix, block.id, 800)} 800w, ${mediaUrl(prefix, block.id, 1600)} 1600w" sizes="(max-width: 640px) 100vw, 340px"${dims(block.id)} alt="${esc(block.alt)}" loading="lazy" decoding="async">`;
@@ -268,13 +276,13 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
     return {...row, blocks};
   }
   // Stories with their section's name and slug (st = stories, sec = story_sections).
-  const CARD_SQL = 'SELECT st.id, st.slug, st.title, st.subtitle, st.author, st.cover_id, st.cover_alt, st.published_at, sec.name AS section_name, sec.slug AS section_slug FROM stories st LEFT JOIN story_sections sec ON sec.id = st.section_id';
+  const CARD_SQL = 'SELECT st.id, st.slug, st.title, st.subtitle, st.author, st.cover_id, st.cover_alt, st.published_at, st.body, sec.name AS section_name, sec.slug AS section_slug FROM stories st LEFT JOIN story_sections sec ON sec.id = st.section_id';
   const FULL_SQL = 'SELECT st.*, sec.name AS section_name, sec.slug AS section_slug FROM stories st LEFT JOIN story_sections sec ON sec.id = st.section_id';
   const SECTION_ID = /^[a-z0-9-]{3,64}$/;
 
   const publicStory = (row, base) => ({
     slug:row.slug, title:row.title, subtitle:row.subtitle, author:row.author, publishedAt:row.published_at, section:row.section_name || null, sectionSlug:row.section_slug || null,
-    url:`${base}/stories/${row.slug}`, cover:row.cover_id ? mediaUrl(base, row.cover_id, 800) : null, coverAlt:row.cover_alt,
+    excerpt:rowExcerpt(row, 26), url:`${base}/stories/${row.slug}`, cover:row.cover_id ? mediaUrl(base, row.cover_id, 800) : null, coverAlt:row.cover_alt,
   });
 
   const dateFormat = new Intl.DateTimeFormat('en-GB', {day:'numeric', month:'long', year:'numeric', timeZone:'Africa/Nairobi'});
@@ -329,10 +337,13 @@ a.eyebrow:hover{color:var(--ink)}
 .card .cover img{width:100%;height:100%;object-fit:cover}
 .card .text{padding:18px 20px 22px;display:flex;flex-direction:column;gap:8px}
 .card h2{font-weight:normal;font-size:21px;line-height:1.2;text-transform:uppercase;letter-spacing:.01em}
-.card p{font-size:15px;line-height:1.55;color:var(--ink-soft)}
+.card .dek{font-size:13px;line-height:1.45;letter-spacing:.08em;text-transform:uppercase;color:var(--forest)}
+.card .blurb{font-size:15px;line-height:1.6;color:var(--ink-soft)}
+.card .read{align-self:flex-start;margin-top:10px}
 .card .meta{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:auto;padding-top:6px}
 .card.lead{grid-column:1/-1}
-@media(min-width:760px){.card.lead{flex-direction:row}.card.lead .cover{flex:1.3;aspect-ratio:auto;min-height:340px}.card.lead .text{flex:1;justify-content:center;padding:32px}.card.lead h2{font-size:clamp(26px,3vw,36px)}.card.lead p{font-size:17px}}
+.card.lead .meta{margin-top:0;padding-top:0}
+@media(min-width:760px){.card.lead{flex-direction:row}.card.lead .cover{flex:1.3;aspect-ratio:auto;min-height:380px}.card.lead .text{flex:1;justify-content:center;gap:12px;padding:36px 36px 40px}.card.lead h2{font-size:clamp(26px,3vw,38px);line-height:1.08}.card.lead .blurb{font-size:17px;line-height:1.65}}
 .empty{max-width:1080px;margin:0 auto;padding:56px 20px;text-align:center;color:var(--ink-soft);background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-border);border-radius:18px}
 .pager{max-width:1080px;margin:28px auto 0;display:flex;justify-content:space-between;gap:12px}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:999px;border:1px solid var(--ink);background:var(--paper);font-size:12px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;color:var(--ink);cursor:pointer;font-family:inherit}
@@ -347,13 +358,18 @@ a.eyebrow:hover{color:var(--ink)}
 .subscribe .note{font-size:14px;margin-top:10px;color:var(--forest)}
 .subscribe .note.error{color:#a3312b}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
-article.story{max-width:760px;margin:0 auto;background:rgba(255,255,255,.9);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:22px;padding:clamp(24px,6vw,64px);border:1px solid var(--glass-border);box-shadow:0 30px 80px -40px rgba(20,40,20,.4)}
-.story header h1{font-weight:normal;font-size:clamp(32px,6vw,54px);line-height:1.04;text-transform:uppercase;margin-top:14px;overflow-wrap:break-word}
+/* Story page: a wide frosted-glass card (like the rest of the site). Inside, magazine style: text at a comfortable
+   reading width, while the cover, photos, galleries, photo + text and players use the card's full width. */
+article.story{max-width:1120px;margin:0 auto;background:rgba(255,255,255,.72);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:26px;padding:clamp(22px,5vw,64px) clamp(16px,5vw,64px) clamp(28px,5vw,64px);border:1px solid var(--glass-border);box-shadow:0 30px 80px -40px rgba(20,40,20,.4)}
+.story header,.prose{display:grid;grid-template-columns:minmax(0,1fr) min(720px,100%) minmax(0,1fr)}
+.story header>*,.prose>*{grid-column:2;min-width:0}
+.story header>.lead-img,.prose>figure,.prose>.split,.prose>.embed{grid-column:1/-1}
+.story header h1{font-weight:normal;font-size:clamp(32px,5.6vw,60px);line-height:1.04;text-transform:uppercase;margin-top:14px;overflow-wrap:break-word}
 .story .dek{font-size:clamp(18px,2.4vw,22px);line-height:1.5;color:var(--ink-soft);margin-top:16px}
 .story .byline{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
-.story .lead-img{margin:28px calc(-1*clamp(24px,6vw,64px)) 0;}
-.story .lead-img img{width:100%}
-.prose{margin-top:32px}
+.story .lead-img{margin:34px 0 0}
+.story .lead-img img{width:100%;border-radius:16px;background:#dfe7e0}
+.prose{margin-top:40px}
 .prose p,.prose li{font-size:18px;line-height:1.75;color:var(--body)}
 .prose p+p,.prose p+ul,.prose p+ol,.prose ul+p,.prose ol+p{margin-top:18px}
 .prose h2{font-weight:normal;font-size:clamp(21px,2.8vw,26px);line-height:1.2;text-transform:uppercase;letter-spacing:.02em;margin:44px 0 14px}
@@ -383,7 +399,7 @@ article.story{max-width:760px;margin:0 auto;background:rgba(255,255,255,.9);-web
 .prose .callout p+p{margin-top:12px}
 .gallery{margin:30px 0}
 .gallery-grid{display:grid;gap:8px;grid-template-columns:repeat(2,1fr)}
-@media(min-width:640px){.gallery:not(.two):not(.one) .gallery-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:640px){.gallery:not(.two):not(.one):not(.four) .gallery-grid{grid-template-columns:repeat(3,1fr)}.gallery.four .gallery-grid{grid-template-columns:repeat(4,1fr)}}
 .gallery.one .gallery-grid{grid-template-columns:1fr}
 .gallery-grid a{display:block;border-radius:10px;overflow:hidden;background:#dfe7e0;aspect-ratio:1}
 .gallery.one .gallery-grid a{aspect-ratio:auto}
@@ -400,11 +416,11 @@ article.story{max-width:760px;margin:0 auto;background:rgba(255,255,255,.9);-web
 .prose .event-info h3{margin:0;font-size:21px;line-height:1.2}
 .prose .event-info p{font-size:15px;line-height:1.5;color:var(--ink-soft)}
 .event-info .pill{margin-top:6px;text-decoration:none}
-.share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:40px;padding-top:24px;border-top:1px solid var(--line)}
+.share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:720px;margin:44px auto 0;padding-top:24px;border-top:1px solid var(--line)}
 .share span{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-right:6px}
 .share a,.share button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:44px;height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;font:inherit;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
 .share a:hover,.share button:hover{border-color:var(--ink)}
-.after{max-width:760px;margin:24px auto 0;display:grid;gap:24px}
+.after{max-width:1120px;margin:24px auto 0;display:grid;grid-template-columns:minmax(0,1fr);gap:24px}
 .more h2{font-weight:normal;font-size:14px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink);margin-bottom:12px}
 .more .cards{grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr))}
 .more .card h2{font-size:17px;color:var(--ink);letter-spacing:.01em;margin:0}
@@ -473,7 +489,9 @@ ${body}
 
   function card(story, base, {lead = false} = {}) {
     const cover = story.cover_id ? `<div class="cover"><img src="${mediaUrl('', story.cover_id, lead ? 1600 : 800)}" alt="${esc(story.cover_alt)}" loading="${lead ? 'eager' : 'lazy'}" decoding="async"></div>` : '';
-    return `<a class="card${lead ? ' lead' : ''}" href="${base}/stories/${story.slug}">${cover}<div class="text"><h2>${esc(story.title)}</h2>${story.subtitle ? `<p>${esc(story.subtitle)}</p>` : ''}<span class="meta">${story.section_name ? `${esc(story.section_name)} · ` : ''}${esc(formatDate(story.published_at))}${story.author ? ` · ${esc(story.author)}` : ''}</span></div></a>`;
+    const blurb = rowExcerpt(story, lead ? 60 : 26);
+    const meta = `<span class="meta">${story.section_name ? `${esc(story.section_name)} · ` : ''}${esc(formatDate(story.published_at))}${story.author ? ` · ${esc(story.author)}` : ''}</span>`;
+    return `<a class="card${lead ? ' lead' : ''}" href="${base}/stories/${story.slug}">${cover}<div class="text">${lead ? meta : ''}<h2>${esc(story.title)}</h2>${story.subtitle ? `<p class="dek">${esc(story.subtitle)}</p>` : ''}${blurb ? `<p class="blurb">${esc(blurb)}</p>` : ''}${lead ? '<span class="pill dark read">Read the story</span>' : meta}</div></a>`;
   }
 
   // Section tabs: only sections with at least one published story.
@@ -792,7 +810,7 @@ ${emailButton('Confirm subscription', link)}
       // Falls back to the newest stories overall while no published story has a section.
       let results = [];
       if (url.searchParams.get('by') === 'section') {
-        results = (await env.DB.prepare(`SELECT * FROM (SELECT st.id, st.slug, st.title, st.subtitle, st.author, st.cover_id, st.cover_alt, st.published_at, sec.name AS section_name, sec.slug AS section_slug, sec.position AS section_position,
+        results = (await env.DB.prepare(`SELECT * FROM (SELECT st.id, st.slug, st.title, st.subtitle, st.author, st.cover_id, st.cover_alt, st.published_at, st.body, sec.name AS section_name, sec.slug AS section_slug, sec.position AS section_position,
           ROW_NUMBER() OVER (PARTITION BY st.section_id ORDER BY st.published_at DESC) AS rn
           FROM stories st JOIN story_sections sec ON sec.id = st.section_id WHERE st.status = 'published') WHERE rn = 1 ORDER BY section_position, section_name LIMIT ?`).bind(limit).all()).results;
       }
@@ -1073,5 +1091,5 @@ ${emailButton('Confirm subscription', link)}
     return null;
   }
 
-  return {publicRoute, adminRoute, cleanBody, parseEmbed, renderBody, storyEmail, slugify};
+  return {publicRoute, adminRoute, cleanBody, parseEmbed, renderBody, storyEmail, slugify, excerpt};
 }

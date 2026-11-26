@@ -639,7 +639,9 @@
             max-width:1160px;
             margin:44px auto 0;
             display:grid;
-            grid-template-columns:repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+            /* Cards keep a card's width even when there's only one story, instead of stretching across the row. */
+            grid-template-columns:repeat(auto-fit, minmax(min(100%, 250px), 340px));
+            justify-content:center;
             gap:18px;
             text-align:left;
         }
@@ -2163,10 +2165,12 @@
                 const title = document.createElement("h3");
                 title.textContent = story.title;
                 text.append(title);
-                if (story.subtitle) {
-                    const sub = document.createElement("p");
-                    sub.textContent = story.subtitle;
-                    text.append(sub);
+                // The story's opening lines (from /stories/api/latest), or the subtitle for an older response.
+                const blurbText = story.excerpt || story.subtitle;
+                if (blurbText) {
+                    const blurb = document.createElement("p");
+                    blurb.textContent = blurbText;
+                    text.append(blurb);
                 }
                 const date = document.createElement("span");
                 date.className = "story-date";

@@ -610,6 +610,15 @@ assert.ok(storyHtml.includes('class="eyebrow" href="https://zahabu.co.ke/stories
 assert.ok((await (await site('/stories/sitemap.xml')).text()).includes('/stories/section/features'));
 assert.equal((await (await site('/stories/api/latest')).json()).stories.find(x => x.slug === 'sundowner-season-and-more').section, 'Features');
 
+// Card blurbs: the story's opening lines (longer on the big first card), also in /stories/api/latest
+const blurbIndex = await (await site('/stories')).text();
+assert.ok(blurbIndex.includes('class="blurb">Hello &lt;script&gt;alert(1)&lt;/script&gt; bold and a bad link good link Line one Line two</p>'), 'escaped blurb from the opening lines');
+assert.ok(blurbIndex.includes('Read the story'), 'big first card has a Read button');
+const latestBlurb = (await (await site('/stories/api/latest')).json()).stories[0];
+assert.ok(latestBlurb.excerpt.startsWith('Hello <script>'), 'raw text in JSON (the page sets it with textContent)');
+const longStory = storiesForTestsModule.cleanBody([{t:'p', c:[{text:Array.from({length:80}, (_, i) => `word${i}`).join(' ')}]}]).blocks;
+assert.ok(storiesForTestsModule.excerpt(longStory, 10).endsWith('word9…'));
+
 // Home page: newest story per section, in section order; falls back to newest overall
 const twinStory = (await (await staff(`/admin/api/stories/${twin.id}`)).json()).story;
 await staff(`/admin/api/stories/${twin.id}`, {method:'PUT', json:{...twinStory, sectionId:'sec-news'}});
