@@ -757,7 +757,8 @@ ${emailButton('Confirm subscription', link)}
       const created = await brevo(env, '/emailCampaigns', {
         name:`Story: ${story.title}`.slice(0, 200), subject:story.title, previewText:story.subtitle || undefined,
         sender:sender(env), replyTo:replyTo(env).email, htmlContent:storyEmail(env, story, {unsubscribe:'{{ unsubscribe }}'}),
-        recipients:{listIds:[Number(env.BREVO_LIST_ID)]}, tag:'stories',
+        // No campaign tag: Brevo's free plan refuses campaigns that have one ("not allowed to avail tag option").
+        recipients:{listIds:[Number(env.BREVO_LIST_ID)]},
       });
       campaignId = String(created.id);
       await env.DB.prepare('UPDATE stories SET newsletter_campaign_id = ? WHERE id = ?').bind(campaignId, id).run();

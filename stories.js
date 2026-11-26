@@ -589,6 +589,8 @@ async function openEditor(id) {
   $('siteHeader').hidden = true;
   window.scrollTo(0, 0);
   setStatus(id ? 'Loading…' : '');
+  // Opened straight from a link (#/story/… or #/new): the list, with the newsletter settings and subscriber count, isn't loaded yet.
+  if (!state.email) await loadList();
   let story = null;
   if (id) {
     try { story = (await api(`/admin/api/stories/${id}`)).story; }

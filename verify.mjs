@@ -556,6 +556,7 @@ brevoCalls.length = 0;
 assert.equal((await staff(`/admin/api/stories/${story.id}/send`, {method:'POST'})).status, 200);
 const campaign = brevoCalls.find(call => call.path === '/emailCampaigns').body;
 assert.deepEqual(campaign.recipients, {listIds:[7]});
+assert.equal(campaign.tag, undefined, 'no campaign tag (refused on Brevo free plan)');
 assert.equal(campaign.subject, 'Sundowner season & <more>');
 assert.ok(campaign.htmlContent.includes('{{ unsubscribe }}'), 'Brevo unsubscribe link');
 assert.ok(campaign.htmlContent.includes('Sundowner season &amp; &lt;more&gt;'), 'email escapes the title');
