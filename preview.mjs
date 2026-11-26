@@ -34,7 +34,7 @@ const photosEnv={DB:localD1(db),PHOTOS:localR2('/private/tmp/zahabu-photos-previ
   // Contact form emails are printed here instead of sent.
   CONTACT_FROM:'website@mail.zahabu.co.ke',CONTACT_EMAIL:{send:async message=>console.log('Contact email (not sent):',JSON.stringify(message,null,2))},
   // Stories: pages link to this server, and Brevo calls are printed (emails saved as HTML files to look at) instead of sent.
-  SITE_ORIGIN:'http://localhost:5173',TURNSTILE_SITE_KEY:'1x00000000000000000000AA',NEWSLETTER_FROM:'stories@zahabu.co.ke',NEWSLETTER_FROM_NAME:'Zahabu',NEWSLETTER_REPLY_TO:'info@zahabu.co.ke',BREVO_LIST_ID:'2',
+  SITE_ORIGIN:'http://localhost:5173',TURNSTILE_SITE_KEY:'1x00000000000000000000AA',NEWSLETTER_FROM:'stories@zahabu.co.ke',NEWSLETTER_FROM_NAME:'Zahabu',NEWSLETTER_REPLY_TO:'comms@zahabu.co.ke',BREVO_LIST_ID:'2',
   BREVO_FAKE:async(path,body)=>{
     const file=`/private/tmp/zahabu-brevo-${Date.now()}.html`;
     if(body?.htmlContent) await writeFile(file,body.htmlContent);

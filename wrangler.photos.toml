@@ -39,7 +39,7 @@ ACCESS_AUD = "b36b4da28e0fd44c1a706aaca98911a163a6d522873ac592443b1e5901108db2"
 SITE_ORIGIN = "https://zahabu.co.ke"
 TURNSTILE_SITE_KEY = "0x4AAAAAAFHmoNtXVh4PIyD2"
 NEWSLETTER_FROM_NAME = "Zahabu"
-NEWSLETTER_REPLY_TO = "info@zahabu.co.ke"
+NEWSLETTER_REPLY_TO = "comms@zahabu.co.ke"
 NEWSLETTER_FROM = "stories@zahabu.co.ke"   # sender "Zahabu", verified in Brevo (domain zahabu.co.ke authenticated and branded there)
 BREVO_LIST_ID = "3"                         # the "Zahabu Stories" list in Brevo → Contacts → Lists
 
