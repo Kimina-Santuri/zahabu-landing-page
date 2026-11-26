@@ -181,7 +181,9 @@
 
         .nav-links{
             display:flex;
-            gap:clamp(16px, 3vw, 36px);
+            flex-wrap:wrap;
+            justify-content:center;
+            gap:4px clamp(16px, 3vw, 36px);
             list-style:none;
         }
 
@@ -1431,6 +1433,30 @@
             }
         }
 
+        /* Small Android phones (360px): five links still fit on one line; below that they wrap instead of overflowing. */
+        @media (max-width:400px){
+
+            .nav-links{
+                column-gap:10px;
+            }
+
+            .nav-links a{
+                letter-spacing:.05em;
+            }
+        }
+
+        @media (max-width:340px){
+
+            .nav-links{
+                column-gap:8px;
+            }
+
+            .nav-links a{
+                font-size:10px;
+                letter-spacing:.03em;
+            }
+        }
+
         @media (prefers-reduced-motion:reduce){
 
             html{ scroll-behavior:auto; }
@@ -1474,6 +1500,7 @@
             <li><a href="#about">About</a></li>
             <li><a href="#programming">Programming</a></li>
             <li><a href="#menus">Menus</a></li>
+            <li><a href="/stories">Stories</a></li>
             <li id="communityNav" hidden><a href="#community">Community</a></li>
             <li><a href="#visit">Visit</a></li>
         </ul>
@@ -2129,7 +2156,7 @@
                 }
                 const date = document.createElement("span");
                 date.className = "story-date";
-                date.textContent = dateFormat.format(new Date(story.publishedAt));
+                date.textContent = (story.section ? `${story.section} · ` : "") + dateFormat.format(new Date(story.publishedAt));
                 text.append(date);
                 card.append(text);
                 return card;

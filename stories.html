@@ -123,6 +123,36 @@
     .embed-card img { width:120px; aspect-ratio:16/9; object-fit:cover; border-radius:6px; flex:none; }
     .uploading { padding:40px; text-align:center; border-radius:12px; background:var(--soft); color:var(--muted); font-size:14px; }
 
+    .sec-row { display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:start; padding:14px; background:var(--paper); border:1px solid var(--line); border-radius:14px; }
+    .sec-move { display:flex; flex-direction:column; gap:4px; }
+    .sec-move button { border:1px solid var(--line); background:var(--paper); border-radius:8px; padding:3px 8px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; }
+    .sec-fields { display:grid; gap:6px; min-width:0; }
+    .sec-fields .input { margin-top:0; }
+    .sec-meta { font-size:12px; color:var(--muted); }
+    .sec-actions { display:flex; flex-direction:column; gap:6px; }
+    .sec-add { display:flex; gap:8px; margin-top:12px; }
+    .sec-add .input { margin-top:0; }
+    @media (max-width:560px) { .sec-row { grid-template-columns:1fr; } .sec-move { flex-direction:row; } .sec-actions { flex-direction:row; } }
+
+    .block-card { border:1px solid var(--line); border-radius:14px; padding:14px; background:var(--soft); padding-top:46px; }
+    .block-card .block-label { position:absolute; top:14px; left:14px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+    .block-card textarea, .block-card input, .block-card select { width:100%; border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:15px; background:var(--paper); user-select:text; resize:vertical; }
+    .block-card textarea { min-height:90px; line-height:1.55; }
+    .story-callout { border-left:3px solid var(--forest); background:#eef4ef; }
+    .gal-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(110px, 1fr)); gap:8px; margin-bottom:8px; }
+    .gal-item { position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; background:var(--paper); }
+    .gal-item img { width:100%; height:100%; object-fit:cover; border-radius:0 !important; }
+    .gal-item button { position:absolute; top:4px; right:4px; border:0; border-radius:999px; width:26px; height:26px; background:rgba(255,255,255,.95); font-size:14px; line-height:1; }
+    .gal-add { aspect-ratio:1; border:1px dashed var(--line); border-radius:8px; background:var(--paper); font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+    .split-edit { display:grid; gap:12px; }
+    @media (min-width:640px) { .split-edit { grid-template-columns:200px 1fr; } .split-edit.right .split-photo { order:2; } }
+    .split-photo img { border-radius:10px !important; }
+    .split-photo .btn { margin-top:6px; width:100%; }
+    .event-grid { display:grid; gap:8px; grid-template-columns:1fr 1fr; }
+    .event-grid .wide { grid-column:1 / -1; }
+    .event-grid label { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); display:grid; gap:4px; }
+    .block-card .fig-fields { margin-top:8px; }
+
     .side { display:grid; gap:16px; }
     .panel { background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px; }
     .panel h2 { font-weight:normal; font-size:13px; letter-spacing:.16em; text-transform:uppercase; margin-bottom:10px; }
@@ -189,12 +219,21 @@
       <div class="tabs" role="group" aria-label="Show">
         <button type="button" class="tab" data-tab="draft" aria-pressed="true">Drafts<span class="count" id="draftCount"></span></button>
         <button type="button" class="tab" data-tab="published" aria-pressed="false">Published<span class="count" id="publishedCount"></span></button>
+        <button type="button" class="tab" data-tab="sections" aria-pressed="false">Sections</button>
         <button type="button" class="tab" data-tab="subscribers" aria-pressed="false">Subscribers<span class="count" id="subCount"></span></button>
       </div>
     </div>
     <p class="message error" id="listError" hidden></p>
     <div class="rows" id="rows"></div>
     <p class="empty" id="listEmpty" hidden></p>
+    <section id="sectionsView" hidden>
+      <p class="intro" style="margin-bottom:14px">Each story can sit in one section. Readers see section tabs on zahabu.co.ke/stories (only for sections that have published stories). Renaming keeps the section's web address, so links don't break.</p>
+      <div class="rows" id="sectionRows"></div>
+      <form class="sec-add" id="sectionAdd">
+        <input class="input" id="newSectionName" maxlength="40" placeholder="New section name, e.g. Food" aria-label="New section name">
+        <button class="btn primary" type="submit">Add section</button>
+      </form>
+    </section>
     <section id="subscribersView" hidden>
       <div class="stats" id="subStats"></div>
       <p class="intro" style="margin-bottom:14px">People join from the box on zahabu.co.ke/stories and confirm by email. Anyone who unsubscribes from a newsletter (or whose address bounces) is removed by Brevo and marked here.</p>
@@ -236,12 +275,25 @@
           <button type="button" data-cmd="photo" title="Add a photo" aria-label="Add a photo"><svg class="icon"><use href="#i-photo"/></svg><span class="label">Photo</span></button>
           <button type="button" data-cmd="embed" title="Add a video or music player" aria-label="Add video or music"><svg class="icon"><use href="#i-play"/></svg><span class="label">Video / music</span></button>
           <button type="button" data-cmd="hr" title="Divider" aria-label="Divider"><svg class="icon"><use href="#i-hr"/></svg></button>
+          <span class="sep"></span>
+          <select id="insertBlock" aria-label="Insert a block" title="Insert a block">
+            <option value="">+ Insert…</option>
+            <option value="gallery">Photo gallery</option>
+            <option value="split">Photo + text</option>
+            <option value="callout">Highlighted note</option>
+            <option value="event">Event card</option>
+          </select>
         </div>
         <div class="prose" id="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Story text" data-placeholder="Start writing…" spellcheck="true"></div>
         <p class="stats-line" id="wordStats"></p>
       </div>
 
       <aside class="side">
+        <section class="panel">
+          <h2>Section</h2>
+          <select class="input" id="sectionSelect" aria-label="Section"><option value="">No section</option></select>
+          <p class="hint">Readers can browse stories by section. <a href="#/sections">Manage sections</a></p>
+        </section>
         <section class="panel">
           <h2>Web address</h2>
           <div class="slug-row"><span>/stories/</span><input id="slug" maxlength="80" placeholder="made from the title" spellcheck="false" autocapitalize="off"></div>

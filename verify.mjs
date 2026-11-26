@@ -381,6 +381,7 @@ console.log('Verified equipment inventory: Access fail-closed, editor vs viewer 
 {
 
 db.exec(await readFile('migrations/0008_stories.sql','utf8'));
+db.exec(await readFile('migrations/0009_story_sections.sql','utf8'));
 const brevoCalls = [];
 let brevoFail = null;
 const storiesEnv = {...photoEnv, LOCAL_DEV:true, SITE_ORIGIN:'https://zahabu.co.ke', ALLOWED_ORIGINS:'https://zahabu.co.ke', TURNSTILE_SITE_KEY:'site-key',
@@ -577,6 +578,71 @@ assert.equal((await (await hook([{event:'unsubscribed', email:'Fan@example.com'}
 assert.equal(db.prepare('SELECT status FROM subscribers WHERE email = ?').get('fan@example.com').status, 'unsubscribed');
 assert.equal(db.prepare('SELECT status FROM subscribers WHERE email = ?').get('gone@example.com').status, 'unsubscribed');
 assert.equal(db.prepare('SELECT status FROM subscribers WHERE email = ?').get('person1@example.com').status, 'confirmed', 'other events ignored');
+
+// Sections: seeded four, staff can add/rename/reorder/delete-if-empty; stories show their section
+let sectionList = (await (await staff('/admin/api/story-sections')).json()).sections;
+assert.deepEqual(sectionList.map(x => x.name), ['News', 'Features', 'Interviews', 'Mixes & music']);
+assert.equal((await staff('/admin/api/story-sections', {method:'POST', json:{name:'Food'}, origin:'https://evil.example'})).status, 403);
+sectionList = (await (await staff('/admin/api/story-sections', {method:'POST', json:{name:'Food & drink'}})).json()).sections;
+const food = sectionList.find(x => x.name === 'Food & drink');
+assert.equal(food.slug, 'food-and-drink');
+sectionList = (await (await staff(`/admin/api/story-sections/${food.id}`, {method:'PUT', json:{name:'Food', description:'From the kitchen'}})).json()).sections;
+assert.equal(sectionList.find(x => x.id === food.id).slug, 'food-and-drink', 'renaming keeps the address');
+sectionList = (await (await staff('/admin/api/story-sections/order', {method:'POST', json:{ids:[food.id, ...sectionList.filter(x => x.id !== food.id).map(x => x.id)]}})).json()).sections;
+assert.equal(sectionList[0].id, food.id, 'reordered');
+assert.equal((await staff(`/admin/api/stories/${story.id}`, {method:'PUT', json:{...story, body, sectionId:'no-such-section'}})).status, 400);
+story = (await (await staff(`/admin/api/stories/${story.id}`, {method:'PUT', json:{...story, body, sectionId:'sec-features'}})).json()).story;
+assert.equal(story.sectionId, 'sec-features');
+assert.equal((await staff('/admin/api/story-sections/sec-features', {method:'DELETE'})).status, 400, 'sections with stories cannot be deleted');
+assert.equal((await staff(`/admin/api/story-sections/${food.id}`, {method:'DELETE'})).status, 200, 'empty sections can');
+const featuresPage = await site('/stories/section/features');
+assert.equal(featuresPage.status, 200);
+const featuresHtml = await featuresPage.text();
+assert.ok(featuresHtml.includes('sundowner-season-and-more') && !featuresHtml.includes('media-story'), 'section page lists only its stories');
+assert.ok(featuresHtml.includes('aria-current="page">Features</a>'), 'section tab marked');
+assert.equal((await site('/stories/section/interviews')).status, 200, 'empty section page still answers');
+assert.equal((await site('/stories/section/nope')).status, 404);
+const allHtml = await (await site('/stories')).text();
+assert.ok(allHtml.includes('href="https://zahabu.co.ke/stories/section/features"') && !allHtml.includes('/stories/section/interviews'), 'tabs only for sections with stories');
+assert.ok(allHtml.includes('Features · '), 'card shows its section');
+const storyHtml = await (await site('/stories/sundowner-season-and-more')).text();
+assert.ok(storyHtml.includes('class="eyebrow" href="https://zahabu.co.ke/stories/section/features">Features</a>') && storyHtml.includes('"articleSection":"Features"'));
+assert.ok((await (await site('/stories/sitemap.xml')).text()).includes('/stories/section/features'));
+assert.equal((await (await site('/stories/api/latest')).json()).stories.find(x => x.slug === 'sundowner-season-and-more').section, 'Features');
+
+// Layout blocks: gallery, photo + text, highlighted note, event card
+const imageA = image.id;
+const richBody = [...body,
+  {t:'callout', text:'Doors at 4pm.\nTickets: https://tickets.example/zahabu <script>x</script>\n\nSecond line'},
+  {t:'gallery', images:[{id:imageA}, {id:'bad'}, {id:imageA}], alt:'The garden', caption:'Friday night'},
+  {t:'split', id:imageA, alt:'DJ booth', text:'Words beside the photo', side:'right'},
+  {t:'split', id:'not-an-id', text:'dropped'},
+  {t:'event', title:'Zahabu Sundowner', date:'2026-12-05', time:'4pm till late', place:'The Mall rooftop', link:'javascript:alert(1)', label:'Tickets'},
+  {t:'event', title:'Bad date', date:'2026-02-30', link:'https://tickets.example/x'},
+  {t:'event', title:''},
+];
+const richClean = storiesForTestsModule.cleanBody(richBody).blocks.slice(blocks.length);
+assert.deepEqual(richClean.map(b => b.t), ['callout', 'gallery', 'split', 'event', 'event']);
+assert.equal(richClean[1].images.length, 2, 'bad gallery ids dropped');
+assert.equal(richClean[3].link, '', 'javascript: event link dropped');
+assert.equal(richClean[4].date, '', 'impossible date dropped');
+story = (await (await staff(`/admin/api/stories/${story.id}`, {method:'PUT', json:{...story, body:richBody, sectionId:'sec-features'}})).json()).story;
+const richHtml = await (await site('/stories/sundowner-season-and-more')).text();
+assert.ok(richHtml.includes('<aside class="callout"><p>Doors at 4pm.<br>Tickets: <a href="https://tickets.example/zahabu">https://tickets.example/zahabu</a> &lt;script&gt;x&lt;/script&gt;</p><p>Second line</p></aside>'), 'callout escaped, links clickable');
+assert.ok(richHtml.includes('class="gallery two"') && richHtml.includes('alt="The garden"'));
+assert.ok(richHtml.includes('class="split right"') && richHtml.includes('Words beside the photo'));
+assert.ok(richHtml.includes('class="event-card"') && richHtml.includes('<span>Dec</span><b>5</b><span>Sat</span>') && richHtml.includes('Saturday, 5 December 2026 · 4pm till late · The Mall rooftop'));
+assert.ok(!richHtml.includes('javascript:'));
+brevoCalls.length = 0;
+assert.equal((await staff(`/admin/api/stories/${story.id}/test-email`, {method:'POST', json:{to:'me@zahabu.co.ke'}})).status, 200);
+const richEmail = brevoCalls[0].body.htmlContent;
+assert.ok(richEmail.includes('Zahabu Stories · Features'), 'email shows the section');
+assert.ok(richEmail.includes('Zahabu Sundowner') && richEmail.includes('Doors at 4pm.') && richEmail.includes('Friday night') && richEmail.includes('Words beside the photo'));
+assert.ok(!richEmail.includes('<script>x'));
+assert.ok(richEmail.includes("font-family:'Zahabu Futura'") || richEmail.includes("'Zahabu Futura'"), 'email uses the site font');
+assert.ok(!/font-family:Futura/.test(richEmail), 'never the built-in Futura');
+const richFeed = await (await site('/stories/feed.xml')).text();
+assert.ok(richFeed.includes('<category>Features</category>'));
 
 // Unpublish takes it off the site
 assert.equal((await staff(`/admin/api/stories/${story.id}/unpublish`, {method:'POST'})).status, 200);

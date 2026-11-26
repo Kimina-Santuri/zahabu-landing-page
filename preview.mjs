@@ -28,6 +28,11 @@ if (!db.prepare('SELECT name FROM _local_migrations WHERE name = ?').get('0007_m
   db.prepare('INSERT INTO _local_migrations VALUES (?)').run('0007_message_status.sql');
 }
 db.exec(await readFile('migrations/0008_stories.sql','utf8'));
+// 0009 has an ALTER TABLE, so apply it once.
+if (!db.prepare('SELECT name FROM _local_migrations WHERE name = ?').get('0009_story_sections.sql')) {
+  db.exec(await readFile('migrations/0009_story_sections.sql','utf8'));
+  db.prepare('INSERT INTO _local_migrations VALUES (?)').run('0009_story_sections.sql');
+}
 const env={DB:localD1(db)};
 // Turnstile's published test secret always passes; LOCAL_DEV skips Cloudflare Access for /admin.
 const photosEnv={DB:localD1(db),PHOTOS:localR2('/private/tmp/zahabu-photos-preview'),LOCAL_DEV:true,TURNSTILE_SECRET:'1x0000000000000000000000000000000AA',ALLOWED_ORIGINS:'http://localhost:5173,http://localhost:8123',

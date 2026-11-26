@@ -11,7 +11,7 @@ const authorField = $('author');
 const slugField = $('slug');
 const statusEl = $('saveStatus');
 const state = {
-  stories:[], tab:'draft', email:'', site:'https://zahabu.co.ke', newsletter:{ready:false}, subscribers:{confirmed:0, pending:0, unsubscribed:0},
+  stories:[], sections:[], tab:'draft', email:'', site:'https://zahabu.co.ke', newsletter:{ready:false}, subscribers:{confirmed:0, pending:0, unsubscribed:0},
   id:null, story:null, baseUpdatedAt:null, coverId:null, coverAlt:'', version:0, savedVersion:0, saving:null, autosave:null, range:null, open:false, ignoreHash:false,
 };
 const dateTime = new Intl.DateTimeFormat('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', timeZone:'Africa/Nairobi'});
@@ -146,6 +146,23 @@ function domToBlocks(root) {
         continue;
       }
       if (child.classList.contains('story-embed')) { flush(); blocks.push({t:'embed', url:child.dataset.url}); continue; }
+      if (child.classList.contains('story-callout')) { flush(); blocks.push({t:'callout', text:child.querySelector('textarea').value}); continue; }
+      if (child.classList.contains('story-gallery')) {
+        flush();
+        blocks.push({t:'gallery', images:[...child.querySelectorAll('.gal-item')].map(item => ({id:item.dataset.id})), alt:child.querySelector('[name=alt]').value, caption:child.querySelector('[name=caption]').value});
+        continue;
+      }
+      if (child.classList.contains('story-split')) {
+        flush();
+        if (child.dataset.id) blocks.push({t:'split', id:child.dataset.id, alt:child.querySelector('[name=alt]').value, text:child.querySelector('textarea').value, side:child.dataset.side});
+        continue;
+      }
+      if (child.classList.contains('story-event')) {
+        flush();
+        const value = name => child.querySelector(`[name=${name}]`).value;
+        blocks.push({t:'event', title:value('title'), date:value('date'), time:value('time'), place:value('place'), link:value('link'), label:value('label')});
+        continue;
+      }
       if (child.classList.contains('uploading')) continue;
       if (!isBlock(child)) {
         if (hasBlockInside(child)) walk(child, marksFor(child, marks));
@@ -256,8 +273,142 @@ function embedFigure(url) {
 
 function emptyParagraph() { const p = el('p'); p.append(el('br')); return p; }
 
+function blockFigure(className, label) {
+  const figure = el('figure', `block-card ${className}`);
+  figure.contentEditable = 'false';
+  figure.append(el('span', 'block-label', label));
+  figure.append(figureTools(figure));
+  return figure;
+}
+
+function textArea(name, placeholder, value) {
+  const area = el('textarea');
+  area.name = name;
+  area.placeholder = placeholder;
+  area.value = value || '';
+  area.maxLength = 3000;
+  area.setAttribute('aria-label', placeholder);
+  return area;
+}
+
+function calloutFigure({text = ''} = {}) {
+  const figure = blockFigure('story-callout', 'Highlighted note');
+  figure.append(textArea('text', 'A note to stand out: opening hours, a ticket link, a key fact… Links are made clickable.', text));
+  return figure;
+}
+
+function galleryItem(id) {
+  const item = el('div', 'gal-item');
+  item.dataset.id = id;
+  const img = el('img');
+  img.src = mediaUrl(id, 800);
+  img.alt = '';
+  const remove = el('button', '', '×');
+  remove.type = 'button';
+  remove.setAttribute('aria-label', 'Remove this photo');
+  remove.addEventListener('click', () => { item.remove(); changed(); });
+  item.append(img, remove);
+  return item;
+}
+
+function galleryFigure({images = [], alt = '', caption = ''} = {}) {
+  const figure = blockFigure('story-gallery', 'Photo gallery');
+  const grid = el('div', 'gal-grid');
+  const add = el('button', 'gal-add', '+ Add photos');
+  add.type = 'button';
+  const picker = el('input');
+  picker.type = 'file';
+  picker.accept = 'image/*';
+  picker.multiple = true;
+  picker.hidden = true;
+  add.addEventListener('click', () => picker.click());
+  picker.addEventListener('change', async () => {
+    const files = [...picker.files];
+    picker.value = '';
+    for (const file of files) {
+      add.textContent = `Uploading ${files.indexOf(file) + 1} of ${files.length}…`;
+      try { add.before(galleryItem((await uploadPhoto(file)).id)); changed(); }
+      catch (error) { setStatus(error.message, 'error'); }
+    }
+    add.textContent = '+ Add photos';
+  });
+  grid.append(...images.map(image => galleryItem(image.id)), add, picker);
+  const fields = el('div', 'fig-fields');
+  fields.append(figureInput('caption', 'Caption (optional)', caption), figureInput('alt', 'Describe these photos for people who can\'t see them', alt));
+  figure.append(grid, fields);
+  return figure;
+}
+
+function splitFigure({id = '', alt = '', text = '', side = 'left'} = {}) {
+  const figure = blockFigure('story-split', 'Photo + text');
+  figure.dataset.id = id;
+  figure.dataset.side = side;
+  const wrap = el('div', `split-edit${side === 'right' ? ' right' : ''}`);
+  const photo = el('div', 'split-photo');
+  const img = el('img');
+  img.alt = '';
+  const choose = el('button', 'btn', id ? 'Change photo' : 'Choose photo');
+  const flip = el('button', 'btn quiet', side === 'right' ? 'Photo on the right' : 'Photo on the left');
+  choose.type = flip.type = 'button';
+  const picker = el('input');
+  picker.type = 'file';
+  picker.accept = 'image/*';
+  picker.hidden = true;
+  const showPhoto = () => { img.hidden = !figure.dataset.id; if (figure.dataset.id) img.src = mediaUrl(figure.dataset.id, 800); };
+  choose.addEventListener('click', () => picker.click());
+  picker.addEventListener('change', async () => {
+    const file = picker.files[0];
+    picker.value = '';
+    if (!file) return;
+    choose.textContent = 'Uploading…';
+    try { figure.dataset.id = (await uploadPhoto(file)).id; showPhoto(); changed(); }
+    catch (error) { setStatus(error.message, 'error'); }
+    choose.textContent = figure.dataset.id ? 'Change photo' : 'Choose photo';
+  });
+  flip.addEventListener('click', () => {
+    figure.dataset.side = figure.dataset.side === 'right' ? 'left' : 'right';
+    wrap.classList.toggle('right', figure.dataset.side === 'right');
+    flip.textContent = figure.dataset.side === 'right' ? 'Photo on the right' : 'Photo on the left';
+    changed();
+  });
+  photo.append(img, choose, flip, picker);
+  wrap.append(photo, textArea('text', 'Text beside the photo. On phones it sits under the photo.', text));
+  const fields = el('div', 'fig-fields');
+  fields.append(figureInput('alt', 'Describe the photo for people who can\'t see it', alt));
+  figure.append(wrap, fields);
+  showPhoto();
+  return figure;
+}
+
+function eventFigure(block = {}) {
+  const figure = blockFigure('story-event', 'Event card');
+  const grid = el('div', 'event-grid');
+  const field = (name, label, type, placeholder, wide, max) => {
+    const wrap = el('label', wide ? 'wide' : '');
+    const input = el('input');
+    input.name = name;
+    input.type = type;
+    input.placeholder = placeholder || '';
+    input.value = block[name] || '';
+    if (max) input.maxLength = max;
+    wrap.append(label, input);
+    return wrap;
+  };
+  grid.append(
+    field('title', 'Event name', 'text', 'e.g. Zahabu Sundowner', true, 120),
+    field('date', 'Date', 'date', '', false),
+    field('time', 'Time', 'text', 'e.g. 4pm till late', false, 60),
+    field('place', 'Place', 'text', 'e.g. The Mall rooftop, Westlands', true, 120),
+    field('link', 'Tickets / RSVP link (optional)', 'url', 'https://…', false, 2000),
+    field('label', 'Button text', 'text', 'e.g. Get tickets', false, 40),
+  );
+  figure.append(grid);
+  return figure;
+}
+
+const BLOCK_FIGURES = {img:imageFigure, embed:block => embedFigure(block.url), callout:calloutFigure, gallery:galleryFigure, split:splitFigure, event:eventFigure};
 function blocksToNodes(blocks) {
-  return blocks.map(block => block.t === 'img' ? imageFigure(block) : block.t === 'embed' ? embedFigure(block.url) : htmlNode(blockHtml(block))).filter(Boolean);
+  return blocks.map(block => BLOCK_FIGURES[block.t] ? BLOCK_FIGURES[block.t](block) : htmlNode(blockHtml(block))).filter(Boolean);
 }
 
 // ---------- Editing helpers ----------
@@ -479,7 +630,7 @@ function refreshStatus() {
 }
 
 function collect() {
-  const data = {title:titleField.value, subtitle:subtitleField.value, author:authorField.value, coverId:state.coverId, coverAlt:state.coverAlt, body:domToBlocks(editor)};
+  const data = {title:titleField.value, subtitle:subtitleField.value, author:authorField.value, coverId:state.coverId, coverAlt:state.coverAlt, sectionId:$('sectionSelect').value || null, body:domToBlocks(editor)};
   const slug = slugField.value.trim();
   if (slug) data.slug = slug;
   return data;
@@ -570,6 +721,12 @@ function renderSide() {
   if (story?.newsletterError && !story.newsletterSentAt) panelState.textContent += ` Last attempt failed: ${story.newsletterError}`;
 }
 
+function fillSectionSelect(selected) {
+  const select = $('sectionSelect');
+  select.replaceChildren(new Option('No section', ''), ...state.sections.map(section => new Option(section.name, section.id)));
+  select.value = state.sections.some(section => section.id === selected) ? selected : '';
+}
+
 function updateWordStats() {
   const words = (editor.innerText || '').split(/\s+/).filter(Boolean).length;
   $('wordStats').textContent = words ? `${words} words · about ${Math.max(1, Math.round(words / 220))} min read` : '';
@@ -605,6 +762,7 @@ async function openEditor(id) {
   subtitleField.value = story?.subtitle || '';
   authorField.value = story ? story.author : storage.get('stories-author') || '';
   slugField.value = story?.slug || '';
+  fillSectionSelect(story?.sectionId || '');
   $('testTo').value = $('testTo').value || state.email;
   editor.replaceChildren(...blocksToNodes(story?.body || []));
   if (!editor.firstElementChild || editor.lastElementChild.contentEditable === 'false') editor.append(emptyParagraph());
@@ -624,7 +782,7 @@ async function openEditor(id) {
 async function loadList() {
   try {
     const data = await api('/admin/api/stories');
-    Object.assign(state, {stories:data.stories, email:data.email, site:data.site, newsletter:data.newsletter, subscribers:data.subscribers});
+    Object.assign(state, {stories:data.stories, sections:data.sections || [], email:data.email, site:data.site, newsletter:data.newsletter, subscribers:data.subscribers});
     $('who').textContent = data.email;
     $('siteLink').href = `${data.site}/stories`;
     $('siteLink').textContent = `${siteHost()}/stories`;
@@ -656,9 +814,12 @@ function renderList() {
   note.textContent = 'Email isn\'t connected yet. Stories can be published, but the subscribe box and the newsletter stay hidden until Brevo is set up.';
 
   const subscribersTab = state.tab === 'subscribers';
+  const sectionsTab = state.tab === 'sections';
   $('subscribersView').hidden = !subscribersTab;
-  $('rows').hidden = subscribersTab;
+  $('sectionsView').hidden = !sectionsTab;
+  $('rows').hidden = subscribersTab || sectionsTab;
   if (subscribersTab) { $('listEmpty').hidden = true; loadSubscribers(); return; }
+  if (sectionsTab) { $('listEmpty').hidden = true; renderSections(); return; }
 
   const items = state.tab === 'draft' ? drafts : published;
   const rows = items.map(story => {
@@ -672,6 +833,8 @@ function renderList() {
       ? `Published ${dateOnly.format(new Date(story.publishedAt))}${story.author ? ` · ${story.author}` : ''}`
       : `Edited ${dateTime.format(new Date(story.updatedAt))} by ${story.updatedBy}`));
     const tags = el('div', 'row-tags');
+    const section = state.sections.find(item => item.id === story.sectionId);
+    if (section) tags.append(el('span', 'tag', section.name));
     tags.append(el('span', `tag ${story.status === 'published' ? 'live' : 'draft'}`, story.status === 'published' ? 'Live' : 'Draft'));
     if (story.newsletterSentAt) tags.append(el('span', 'tag mail', 'Emailed'));
     else if (story.newsletterError) tags.append(el('span', 'tag warn', 'Email failed'));
@@ -683,6 +846,73 @@ function renderList() {
   empty.hidden = rows.length > 0;
   empty.textContent = state.tab === 'draft' ? 'No drafts. Press "New story" to start one.' : 'Nothing published yet.';
 }
+
+// ---------- Sections tab ----------
+
+function renderSections() {
+  const rows = state.sections.map((section, index) => {
+    const row = el('div', 'sec-row');
+    const move = el('div', 'sec-move');
+    const up = el('button', '', 'Up');
+    const down = el('button', '', 'Down');
+    up.type = down.type = 'button';
+    up.setAttribute('aria-label', `Move ${section.name} up`);
+    down.setAttribute('aria-label', `Move ${section.name} down`);
+    up.disabled = index === 0;
+    down.disabled = index === state.sections.length - 1;
+    const reorder = async offset => {
+      const ids = state.sections.map(item => item.id);
+      [ids[index], ids[index + offset]] = [ids[index + offset], ids[index]];
+      await sectionCall('/admin/api/story-sections/order', 'POST', {ids});
+    };
+    up.addEventListener('click', () => reorder(-1));
+    down.addEventListener('click', () => reorder(1));
+    move.append(up, down);
+    const fields = el('div', 'sec-fields');
+    const name = el('input', 'input');
+    name.value = section.name;
+    name.maxLength = 40;
+    name.setAttribute('aria-label', 'Section name');
+    const description = el('input', 'input');
+    description.value = section.description;
+    description.maxLength = 200;
+    description.placeholder = 'One line about this section (shown on its page)';
+    description.setAttribute('aria-label', 'Section description');
+    fields.append(name, description, el('span', 'sec-meta', `${siteHost()}/stories/section/${section.slug} · ${section.storyCount} ${section.storyCount === 1 ? 'story' : 'stories'}`));
+    const actions = el('div', 'sec-actions');
+    const save = el('button', 'btn', 'Save');
+    const remove = el('button', 'btn danger', 'Delete');
+    save.type = remove.type = 'button';
+    save.addEventListener('click', () => sectionCall(`/admin/api/story-sections/${section.id}`, 'PUT', {name:name.value, description:description.value}));
+    remove.addEventListener('click', async () => {
+      if (!(await confirmBox(`Delete "${section.name}"?`, 'The section and its page go away. Only empty sections can be deleted.', 'Delete'))) return;
+      sectionCall(`/admin/api/story-sections/${section.id}`, 'DELETE');
+    });
+    actions.append(save, remove);
+    row.append(move, fields, actions);
+    return row;
+  });
+  $('sectionRows').replaceChildren(...rows);
+}
+
+async function sectionCall(path, method, json) {
+  try {
+    state.sections = (await api(path, {method, json})).sections;
+    $('listError').hidden = true;
+    renderSections();
+  } catch (error) {
+    $('listError').textContent = error.message;
+    $('listError').hidden = false;
+  }
+}
+
+$('sectionAdd').addEventListener('submit', async event => {
+  event.preventDefault();
+  const name = $('newSectionName').value.trim();
+  if (!name) return;
+  await sectionCall('/admin/api/story-sections', 'POST', {name});
+  $('newSectionName').value = '';
+});
 
 let subscriberList = [];
 async function loadSubscribers() {
@@ -727,7 +957,7 @@ $('downloadCsv').addEventListener('click', () => {
 for (const tab of document.querySelectorAll('.tab')) {
   tab.addEventListener('click', () => {
     state.tab = tab.dataset.tab;
-    history.replaceState(null, '', state.tab === 'subscribers' ? '#/subscribers' : '#/');
+    history.replaceState(null, '', state.tab === 'subscribers' || state.tab === 'sections' ? `#/${state.tab}` : '#/');
     renderList();
   });
 }
@@ -741,7 +971,8 @@ async function route() {
   if (hash === '#/new') return openEditor(null);
   if (match) return openEditor(match[1]);
   if (hash === '#/subscribers') state.tab = 'subscribers';
-  else if (state.tab === 'subscribers') state.tab = 'draft';
+  else if (hash === '#/sections') state.tab = 'sections';
+  else if (state.tab === 'subscribers' || state.tab === 'sections') state.tab = 'draft';
   await loadList();
   showList();
 }
@@ -785,12 +1016,25 @@ window.addEventListener('beforeunload', event => {
 
 document.execCommand('defaultParagraphSeparator', false, 'p');
 editor.addEventListener('input', changed);
+$('sectionSelect').addEventListener('change', changed);
 for (const field of [titleField, subtitleField, authorField, slugField]) field.addEventListener('input', () => { if (field.tagName === 'TEXTAREA') autosize(field); changed(); });
 titleField.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); subtitleField.focus(); } });
 subtitleField.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); editor.focus(); placeCaret(editor.firstElementChild); } });
 slugField.addEventListener('blur', () => { if (slugField.value.trim()) slugField.value = slugify(slugField.value); });
 document.addEventListener('selectionchange', updateToolbar);
 window.addEventListener('resize', () => { autosize(titleField); autosize(subtitleField); });
+
+$('insertBlock').addEventListener('change', event => {
+  const kind = event.target.value;
+  event.target.value = '';
+  const anchor = currentBlock();
+  const figure = {gallery:galleryFigure, split:splitFigure, callout:calloutFigure, event:eventFigure}[kind]?.();
+  if (!figure) return;
+  insertBlock(figure, anchor);
+  if (kind === 'gallery') figure.querySelector('.gal-add').click();
+  else if (kind === 'split') figure.querySelector('.split-photo .btn').click();
+  else figure.querySelector('textarea, input')?.focus();
+});
 
 // Keep the editor's selection when pressing toolbar buttons.
 $('toolbar').addEventListener('mousedown', event => { if (event.target.closest('button')) event.preventDefault(); });
@@ -862,6 +1106,7 @@ $('photoInput').addEventListener('change', event => {
 });
 
 editor.addEventListener('keydown', event => {
+  if (event.target.closest('textarea')) return;
   if (event.target.closest('input')) {
     if (event.key === 'Enter') event.preventDefault();
     return;
@@ -875,7 +1120,7 @@ document.addEventListener('keydown', event => {
 });
 
 editor.addEventListener('paste', event => {
-  if (event.target.closest('input')) return;
+  if (event.target.closest('input, textarea')) return;
   event.preventDefault();
   const html = event.clipboardData.getData('text/html');
   const text = event.clipboardData.getData('text/plain');

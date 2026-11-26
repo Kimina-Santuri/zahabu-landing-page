@@ -16,7 +16,7 @@
 
 const ID = /^[0-9a-f-]{36}$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const RESERVED_SLUGS = new Set(['api', 'media', 'confirm', 'feed', 'sitemap', 'subscribe', 'page', 'admin']);
+const RESERVED_SLUGS = new Set(['api', 'media', 'confirm', 'feed', 'sitemap', 'subscribe', 'page', 'admin', 'section']);
 const MAX = {title:160, subtitle:300, author:80, alt:300, caption:300, slug:80, blocks:600, runs:400, runText:20000, bodyBytes:400_000};
 const PER_PAGE = 20;
 const MAX_SUBSCRIBES_PER_IP_PER_HOUR = 5;
@@ -94,6 +94,12 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
     return null;
   }
 
+  const cleanLine = (value, max) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+  // Multi-line plain text (callouts, photo + text): line breaks kept, control characters dropped.
+  const cleanText = (value, max) => String(value ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f]/g, '')
+    .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, max);
+  const validDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().startsWith(value);
+
   // Returns {blocks} or {error}.
   function cleanBody(raw) {
     if (!Array.isArray(raw)) return {error:'The story text could not be read.'};
@@ -115,6 +121,21 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
         if (embed) blocks.push({t:'embed', url:embed.link});
       } else if (block.t === 'hr') {
         if (blocks.length && blocks[blocks.length - 1].t !== 'hr') blocks.push({t:'hr'});
+      } else if (block.t === 'callout') {
+        const text = cleanText(block.text, 2000);
+        if (text) blocks.push({t:'callout', text});
+      } else if (block.t === 'gallery') {
+        const images = (Array.isArray(block.images) ? block.images : []).filter(image => ID.test(image?.id || '')).slice(0, 24).map(image => ({id:image.id}));
+        if (images.length) blocks.push({t:'gallery', images, alt:cleanLine(block.alt, MAX.alt), caption:cleanLine(block.caption, MAX.caption)});
+      } else if (block.t === 'split') {
+        if (!ID.test(block.id || '')) continue;
+        blocks.push({t:'split', id:block.id, alt:cleanLine(block.alt, MAX.alt), text:cleanText(block.text, 3000), side:block.side === 'right' ? 'right' : 'left'});
+      } else if (block.t === 'event') {
+        const title = cleanLine(block.title, 120);
+        if (!title) continue;
+        const link = block.link ? cleanHref(block.link) : null;
+        blocks.push({t:'event', title, date:validDay(block.date) ? block.date : '', time:cleanLine(block.time, 60), place:cleanLine(block.place, 120),
+          link:link && /^https?:/.test(link) ? link : '', label:cleanLine(block.label, 40)});
       }
     }
     return {blocks};
@@ -122,10 +143,11 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
 
   const plainText = runs => runs.map(run => run.text).join('');
   function bodyText(blocks) {
-    return blocks.flatMap(block => block.c ? [plainText(block.c)] : block.items ? block.items.map(plainText) : block.caption ? [block.caption] : []).join('\n');
+    return blocks.flatMap(block => block.c ? [plainText(block.c)] : block.items ? block.items.map(plainText)
+      : block.t === 'event' ? [block.title, block.place] : [block.text, block.caption].filter(Boolean)).join('\n');
   }
   const wordCount = blocks => bodyText(blocks).split(/\s+/).filter(Boolean).length;
-  const imageIds = story => [...new Set([story.cover_id, ...story.blocks.filter(b => b.t === 'img').map(b => b.id)].filter(Boolean))];
+  const imageIds = story => [...new Set([story.cover_id, ...story.blocks.flatMap(b => b.t === 'img' || b.t === 'split' ? [b.id] : b.t === 'gallery' ? b.images.map(i => i.id) : [])].filter(Boolean))];
 
   async function imageSizes(env, ids) {
     if (!ids.length) return {};
@@ -149,6 +171,19 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
     }).join('');
   }
 
+  // Plain text → HTML: escaped, links made clickable, blank lines → paragraphs, single line breaks → <br>.
+  function textHtml(text, {paragraph = '<p>', close = '</p>', link = ''} = {}) {
+    return text.split(/\n{2,}/).map(part => paragraph + esc(part)
+      .replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, url => `<a href="${url}"${link}>${url}</a>`).replace(/\n/g, '<br>') + close).join('');
+  }
+  const eventDate = day => {
+    if (!day) return null;
+    const d = new Date(`${day}T12:00:00Z`);
+    const part = options => new Intl.DateTimeFormat('en-GB', {...options, timeZone:'UTC'}).format(d);
+    return {month:part({month:'short'}), day:part({day:'numeric'}), weekday:part({weekday:'short'}), long:part({weekday:'long', day:'numeric', month:'long', year:'numeric'})};
+  };
+  const eventLine = block => [eventDate(block.date)?.long, block.time, block.place].filter(Boolean).join(' · ');
+
   function renderBody(blocks, sizes, mode, base) {
     const P = 'margin:0 0 18px;font-size:17px;line-height:1.7;color:#24302a;';
     return blocks.map(block => {
@@ -166,6 +201,21 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
           if (!embed) return '';
           const thumb = embed.thumb ? `<a href="${esc(embed.link)}"><img src="${esc(embed.thumb)}" width="544" alt="Play on ${embed.label}" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px;"></a>` : '';
           return `<p style="margin:6px 0 20px;">${thumb}<a href="${esc(embed.link)}" style="display:inline-block;margin-top:${thumb ? 10 : 0}px;padding:10px 18px;border-radius:999px;border:1px solid #141814;color:#141814;font-size:12px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;">${embed.kind === 'youtube' || embed.kind === 'vimeo' ? 'Watch' : 'Listen'} on ${embed.label}</a></p>`;
+        }
+        const linkStyle = ' style="color:#2f5d3a;text-decoration:underline;"';
+        if (block.t === 'callout') return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 22px;"><tr><td style="padding:16px 20px;background:#eef4ef;border-left:3px solid #2f5d3a;border-radius:0 10px 10px 0;">${textHtml(block.text, {paragraph:'<p style="margin:0 0 10px;font-size:16px;line-height:1.6;color:#141814;">', link:linkStyle})}</td></tr></table>`;
+        if (block.t === 'gallery') {
+          const cells = block.images.map(image => `<td width="50%" style="padding:4px;vertical-align:top;"><a href="${mediaUrl(base, image.id, 1600)}"><img src="${mediaUrl(base, image.id, 800)}" width="264" alt="${esc(block.alt)}" style="display:block;width:100%;height:auto;border:0;border-radius:8px;"></a></td>`);
+          const rows = [];
+          for (let i = 0; i < cells.length; i += 2) rows.push(`<tr>${cells[i]}${cells[i + 1] || '<td width="50%"></td>'}</tr>`);
+          return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:2px -4px 6px;">${rows.join('')}</table>${block.caption ? `<p style="margin:0 0 20px;font-size:13px;line-height:1.5;color:#5f6a63;">${esc(block.caption)}</p>` : '<p style="margin:0 0 14px;"></p>'}`;
+        }
+        if (block.t === 'split') return `<p style="margin:6px 0 12px;"><img src="${mediaUrl(base, block.id, 1600)}" width="544" alt="${esc(block.alt)}" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px;"></p>${block.text ? textHtml(block.text, {paragraph:`<p style="${P}">`, link:linkStyle}) : ''}`;
+        if (block.t === 'event') {
+          const day = eventDate(block.date);
+          const dateCell = day ? `<td width="76" style="vertical-align:top;padding:14px 0 14px 16px;"><div style="width:60px;border-radius:10px;background:#141814;color:#ffffff;text-align:center;padding:8px 0;"><div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;">${day.month}</div><div style="font-size:26px;line-height:1.1;">${day.day}</div><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:.8;">${day.weekday}</div></div></td>` : '';
+          const button = block.link ? `<a href="${esc(block.link)}" style="display:inline-block;margin-top:10px;padding:9px 18px;border-radius:999px;background:#141814;color:#ffffff;font-size:12px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;">${esc(block.label || 'Details')}</a>` : '';
+          return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 22px;border:1px solid #dde3de;border-radius:12px;"><tr>${dateCell}<td style="vertical-align:top;padding:14px 16px;"><p style="margin:0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#5f6a63;">Event</p><p style="margin:4px 0 0;font-size:19px;line-height:1.25;color:#141814;">${esc(block.title)}</p>${eventLine(block) ? `<p style="margin:6px 0 0;font-size:14px;line-height:1.5;color:#3d4640;">${esc(eventLine(block))}</p>` : ''}${button}</td></tr></table>`;
         }
         return '';
       }
@@ -189,6 +239,22 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
 <button type="button" class="embed-play" aria-label="${verb} on ${embed.label}">${embed.thumb ? `<img src="${esc(embed.thumb)}" alt="" loading="lazy" decoding="async">` : ''}<span class="embed-btn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>${verb} on ${embed.label}</span></button>
 <a class="embed-link" href="${esc(embed.link)}" rel="noopener">Open on ${embed.label}</a></div>`;
       }
+      const prefix = mode === 'feed' ? base : '';
+      const dims = id => sizes[id] ? ` width="${sizes[id].width}" height="${sizes[id].height}"` : '';
+      if (block.t === 'callout') return mode === 'feed' ? `<blockquote>${textHtml(block.text)}</blockquote>` : `<aside class="callout">${textHtml(block.text)}</aside>`;
+      if (block.t === 'gallery') {
+        return `<figure class="gallery${block.images.length === 1 ? ' one' : block.images.length === 2 ? ' two' : ''}"><div class="gallery-grid">${block.images.map(image => `<a href="${mediaUrl(prefix, image.id, 1600)}" target="_blank" rel="noopener"><img src="${mediaUrl(prefix, image.id, 800)}"${dims(image.id)} alt="${esc(block.alt)}" loading="lazy" decoding="async"></a>`).join('')}</div>${block.caption ? `<figcaption>${esc(block.caption)}</figcaption>` : ''}</figure>`;
+      }
+      if (block.t === 'split') {
+        const img = `<img src="${mediaUrl(prefix, block.id, 1600)}" srcset="${mediaUrl(prefix, block.id, 800)} 800w, ${mediaUrl(prefix, block.id, 1600)} 1600w" sizes="(max-width: 640px) 100vw, 340px"${dims(block.id)} alt="${esc(block.alt)}" loading="lazy" decoding="async">`;
+        return mode === 'feed' ? `<p>${img}</p>${textHtml(block.text)}` : `<div class="split${block.side === 'right' ? ' right' : ''}"><div class="split-img">${img}</div><div class="split-text">${textHtml(block.text)}</div></div>`;
+      }
+      if (block.t === 'event') {
+        const day = eventDate(block.date);
+        const button = block.link ? `<a class="pill dark" href="${esc(block.link)}" rel="noopener">${esc(block.label || 'Details')}</a>` : '';
+        if (mode === 'feed') return `<p><strong>${esc(block.title)}</strong>${eventLine(block) ? `<br>${esc(eventLine(block))}` : ''}${block.link ? `<br><a href="${esc(block.link)}">${esc(block.label || 'Details')}</a>` : ''}</p>`;
+        return `<div class="event-card">${day ? `<div class="event-date" aria-hidden="true"><span>${day.month}</span><b>${day.day}</b><span>${day.weekday}</span></div>` : ''}<div class="event-info"><span class="eyebrow">Event</span><h3>${esc(block.title)}</h3>${eventLine(block) ? `<p>${esc(eventLine(block))}</p>` : ''}${button}</div></div>`;
+      }
       return '';
     }).join('\n');
   }
@@ -201,8 +267,13 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
     try { blocks = JSON.parse(row.body || '[]'); } catch {}
     return {...row, blocks};
   }
+  // Stories with their section's name and slug (st = stories, sec = story_sections).
+  const CARD_SQL = 'SELECT st.id, st.slug, st.title, st.subtitle, st.author, st.cover_id, st.cover_alt, st.published_at, sec.name AS section_name, sec.slug AS section_slug FROM stories st LEFT JOIN story_sections sec ON sec.id = st.section_id';
+  const FULL_SQL = 'SELECT st.*, sec.name AS section_name, sec.slug AS section_slug FROM stories st LEFT JOIN story_sections sec ON sec.id = st.section_id';
+  const SECTION_ID = /^[a-z0-9-]{3,64}$/;
+
   const publicStory = (row, base) => ({
-    slug:row.slug, title:row.title, subtitle:row.subtitle, author:row.author, publishedAt:row.published_at,
+    slug:row.slug, title:row.title, subtitle:row.subtitle, author:row.author, publishedAt:row.published_at, section:row.section_name || null,
     url:`${base}/stories/${row.slug}`, cover:row.cover_id ? mediaUrl(base, row.cover_id, 800) : null, coverAlt:row.cover_alt,
   });
 
@@ -241,6 +312,12 @@ img{display:block;max-width:100%;height:auto}
 .top nav a:hover,.top nav a[aria-current]{border-bottom-color:currentColor}
 main{padding:clamp(16px,4vw,40px) var(--gutter) clamp(56px,9vw,100px)}
 .eyebrow{display:block;font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+.sections{max-width:1080px;margin:0 auto 22px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px}
+.sections::-webkit-scrollbar{display:none}
+.sections a{flex:none;padding:9px 16px;border-radius:999px;background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-border);font-size:12px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none}
+.sections a[aria-current]{background:var(--ink);border-color:var(--ink);color:#fff}
+a.eyebrow{text-decoration:none}
+a.eyebrow:hover{color:var(--ink)}
 .hero{max-width:1080px;margin:0 auto 36px;display:grid;gap:24px;grid-template-columns:1fr;align-items:end}
 .hero h1{font-weight:normal;font-size:clamp(44px,9vw,96px);line-height:.95;text-transform:uppercase;margin-top:12px}
 .hero p{font-size:clamp(17px,2.2vw,20px);line-height:1.55;color:var(--ink-soft);max-width:560px;margin-top:14px}
@@ -301,6 +378,28 @@ article.story{max-width:760px;margin:0 auto;background:rgba(255,255,255,.9);-web
 .embed-btn{position:relative;display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:999px;background:#fff;color:var(--ink);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
 .embed-link{position:absolute;right:10px;bottom:8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#fff;opacity:.8}
 .embed.playing .embed-link{display:none}
+.callout{margin:30px 0;padding:20px 24px;background:#eef4ef;border-left:3px solid var(--forest);border-radius:0 14px 14px 0}
+.prose .callout p{font-size:17px;line-height:1.65;color:var(--ink)}
+.prose .callout p+p{margin-top:12px}
+.gallery{margin:30px 0}
+.gallery-grid{display:grid;gap:8px;grid-template-columns:repeat(2,1fr)}
+@media(min-width:640px){.gallery:not(.two):not(.one) .gallery-grid{grid-template-columns:repeat(3,1fr)}}
+.gallery.one .gallery-grid{grid-template-columns:1fr}
+.gallery-grid a{display:block;border-radius:10px;overflow:hidden;background:#dfe7e0;aspect-ratio:1}
+.gallery.one .gallery-grid a{aspect-ratio:auto}
+.gallery-grid img{width:100%;height:100%;object-fit:cover}
+.split{display:grid;gap:18px;margin:30px 0;align-items:center}
+.split-img img{width:100%;border-radius:12px;background:#dfe7e0}
+@media(min-width:640px){.split{grid-template-columns:1fr 1fr;gap:28px}.split.right .split-img{order:2}}
+.prose .split-text p+p{margin-top:14px}
+.event-card{display:flex;gap:18px;align-items:flex-start;margin:30px 0;padding:18px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.event-date{flex:none;width:68px;border-radius:12px;background:var(--ink);color:#fff;text-align:center;padding:9px 0;display:flex;flex-direction:column;gap:2px}
+.event-date span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.85}
+.event-date b{font-weight:normal;font-size:28px;line-height:1}
+.event-info{display:flex;flex-direction:column;gap:6px;align-items:flex-start;min-width:0}
+.prose .event-info h3{margin:0;font-size:21px;line-height:1.2}
+.prose .event-info p{font-size:15px;line-height:1.5;color:var(--ink-soft)}
+.event-info .pill{margin-top:6px;text-decoration:none}
 .share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:40px;padding-top:24px;border-top:1px solid var(--line)}
 .share span{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-right:6px}
 .share a,.share button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:44px;height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;font:inherit;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
@@ -374,20 +473,38 @@ ${body}
 
   function card(story, base, {lead = false} = {}) {
     const cover = story.cover_id ? `<div class="cover"><img src="${mediaUrl('', story.cover_id, lead ? 1600 : 800)}" alt="${esc(story.cover_alt)}" loading="${lead ? 'eager' : 'lazy'}" decoding="async"></div>` : '';
-    return `<a class="card${lead ? ' lead' : ''}" href="${base}/stories/${story.slug}">${cover}<div class="text"><h2>${esc(story.title)}</h2>${story.subtitle ? `<p>${esc(story.subtitle)}</p>` : ''}<span class="meta">${esc(formatDate(story.published_at))}${story.author ? ` · ${esc(story.author)}` : ''}</span></div></a>`;
+    return `<a class="card${lead ? ' lead' : ''}" href="${base}/stories/${story.slug}">${cover}<div class="text"><h2>${esc(story.title)}</h2>${story.subtitle ? `<p>${esc(story.subtitle)}</p>` : ''}<span class="meta">${story.section_name ? `${esc(story.section_name)} · ` : ''}${esc(formatDate(story.published_at))}${story.author ? ` · ${esc(story.author)}` : ''}</span></div></a>`;
   }
 
-  async function indexPage(env, url) {
+  // Section tabs: only sections with at least one published story.
+  async function sectionTabs(env, base, current) {
+    const {results} = await env.DB.prepare("SELECT sec.slug, sec.name FROM story_sections sec WHERE EXISTS (SELECT 1 FROM stories st WHERE st.section_id = sec.id AND st.status = 'published') ORDER BY sec.position, sec.name").all();
+    if (!results.length) return '';
+    return `<nav class="sections" aria-label="Sections"><a href="${base}/stories"${current ? '' : ' aria-current="page"'}>All</a>${results.map(row => `<a href="${base}/stories/section/${row.slug}"${current === row.slug ? ' aria-current="page"' : ''}>${esc(row.name)}</a>`).join('')}</nav>`;
+  }
+
+  // /stories (all) and /stories/section/<slug> (one section).
+  async function indexPage(env, url, sectionSlug = null) {
     const base = site(env);
+    let section = null;
+    if (sectionSlug) {
+      section = await env.DB.prepare('SELECT id, slug, name, description FROM story_sections WHERE slug = ?').bind(sectionSlug).first();
+      if (!section) return notFound(env, url);
+    }
     const page = Math.max(1, Math.min(500, Number.parseInt(url.searchParams.get('page') || '1', 10) || 1));
-    const {results} = await env.DB.prepare("SELECT slug, title, subtitle, author, cover_id, cover_alt, published_at FROM stories WHERE status = 'published' ORDER BY published_at DESC LIMIT ? OFFSET ?")
-      .bind(PER_PAGE + 1, (page - 1) * PER_PAGE).all();
+    const where = section ? "st.status = 'published' AND st.section_id = ?" : "st.status = 'published'";
+    const binds = section ? [section.id] : [];
+    const {results} = await env.DB.prepare(`${CARD_SQL} WHERE ${where} ORDER BY st.published_at DESC LIMIT ? OFFSET ?`).bind(...binds, PER_PAGE + 1, (page - 1) * PER_PAGE).all();
     const stories = results.slice(0, PER_PAGE);
+    const path = section ? `/stories/section/${section.slug}` : '/stories';
     const cards = stories.map((story, index) => card(story, base, {lead:page === 1 && index === 0})).join('');
-    const pager = page > 1 || results.length > PER_PAGE ? `<nav class="pager">${page > 1 ? `<a class="pill" href="${base}/stories${page > 2 ? `?page=${page - 1}` : ''}">Newer stories</a>` : '<span></span>'}${results.length > PER_PAGE ? `<a class="pill" href="${base}/stories?page=${page + 1}">Older stories</a>` : ''}</nav>` : '';
-    const body = `<main><section class="hero"><div><span class="eyebrow">Zahabu Culture Garden</span><h1>Stories</h1><p>News, features and conversations from the garden: the nights, the music and the people who make Zahabu.</p></div>${subscribeBox(env)}</section>
-${stories.length ? `<div class="cards">${cards}</div>${pager}` : '<p class="empty">The first stories are on their way.</p>'}</main>`;
-    return layout(env, url, {title:page > 1 ? `Stories (page ${page}) · Zahabu` : 'Stories · Zahabu Culture Garden', description:'News, features and conversations from Zahabu Culture Garden in Nairobi.', canonical:`${base}/stories${page > 1 ? `?page=${page}` : ''}`, body});
+    const pager = page > 1 || results.length > PER_PAGE ? `<nav class="pager">${page > 1 ? `<a class="pill" href="${base}${path}${page > 2 ? `?page=${page - 1}` : ''}">Newer stories</a>` : '<span></span>'}${results.length > PER_PAGE ? `<a class="pill" href="${base}${path}?page=${page + 1}">Older stories</a>` : ''}</nav>` : '';
+    const intro = section ? (section.description || `Stories in ${section.name}.`) : 'News, features and conversations from the garden: the nights, the music and the people who make Zahabu.';
+    const body = `<main><section class="hero"><div>${section ? `<a class="eyebrow" href="${base}/stories">Stories</a>` : '<span class="eyebrow">Zahabu Culture Garden</span>'}<h1>${esc(section ? section.name : 'Stories')}</h1><p>${esc(intro)}</p></div>${subscribeBox(env)}</section>
+${await sectionTabs(env, base, section?.slug)}
+${stories.length ? `<div class="cards">${cards}</div>${pager}` : `<p class="empty">${section ? 'No stories in this section yet.' : 'The first stories are on their way.'}</p>`}</main>`;
+    const title = `${section ? section.name : 'Stories'}${page > 1 ? ` (page ${page})` : ''} · ${section || page > 1 ? 'Zahabu' : 'Zahabu Culture Garden'}`;
+    return layout(env, url, {title, description:section ? intro : 'News, features and conversations from Zahabu Culture Garden in Nairobi.', canonical:`${base}${path}${page > 1 ? `?page=${page}` : ''}`, body});
   }
 
   function storyArticle(env, story, sizes, more, {preview = false} = {}) {
@@ -402,7 +519,8 @@ ${stories.length ? `<div class="cards">${cards}</div>${pager}` : '<p class="empt
 <button type="button" data-copy="${esc(url)}">${icon('link')}<span class="label">Copy link</span></button></div>`;
     const cover = story.cover_id ? `<figure class="lead-img"><img src="${mediaUrl('', story.cover_id, 1600)}" srcset="${mediaUrl('', story.cover_id, 800)} 800w, ${mediaUrl('', story.cover_id, 1600)} 1600w" sizes="(max-width: 760px) 100vw, 760px"${sizes[story.cover_id] ? ` width="${sizes[story.cover_id].width}" height="${sizes[story.cover_id].height}"` : ''} alt="${esc(story.cover_alt)}"></figure>` : '';
     const moreHtml = more.length ? `<section class="more"><h2>More stories</h2><div class="cards">${more.map(row => card(row, base)).join('')}</div></section>` : '';
-    return `<main><article class="story"><header><span class="eyebrow">Stories</span><h1>${esc(story.title || 'Untitled story')}</h1>${story.subtitle ? `<p class="dek">${esc(story.subtitle)}</p>` : ''}
+    const eyebrow = story.section_name ? `<a class="eyebrow" href="${base}/stories/section/${story.section_slug}">${esc(story.section_name)}</a>` : `<a class="eyebrow" href="${base}/stories">Stories</a>`;
+    return `<main><article class="story"><header>${eyebrow}<h1>${esc(story.title || 'Untitled story')}</h1>${story.subtitle ? `<p class="dek">${esc(story.subtitle)}</p>` : ''}
 <p class="byline">${story.author ? `By ${esc(story.author)} · ` : ''}${preview && !story.published_at ? 'Not published yet' : esc(formatDate(story.published_at))} · ${minutes} min read</p>${cover}</header>
 <div class="prose">${renderBody(story.blocks, sizes, 'web', base)}</div>${share}</article>
 <div class="after">${preview ? '' : subscribeBox(env, {heading:'Enjoyed this story?', text:'Get the next one by email. Free, and you can leave any time.'})}${moreHtml}</div></main>`;
@@ -410,17 +528,17 @@ ${stories.length ? `<div class="cards">${cards}</div>${pager}` : '<p class="empt
 
   async function storyPage(env, url, slug) {
     const base = site(env);
-    const story = rowToStory(await env.DB.prepare("SELECT * FROM stories WHERE slug = ? AND status = 'published'").bind(slug).first());
+    const story = rowToStory(await env.DB.prepare(`${FULL_SQL} WHERE st.slug = ? AND st.status = 'published'`).bind(slug).first());
     if (!story) return notFound(env, url);
     const [sizes, more] = await Promise.all([
       imageSizes(env, imageIds(story)),
-      env.DB.prepare("SELECT slug, title, subtitle, author, cover_id, cover_alt, published_at FROM stories WHERE status = 'published' AND id != ? ORDER BY published_at DESC LIMIT 3").bind(story.id).all().then(r => r.results),
+      env.DB.prepare(`${CARD_SQL} WHERE st.status = 'published' AND st.id != ? ORDER BY st.published_at DESC LIMIT 3`).bind(story.id).all().then(r => r.results),
     ]);
     const canonical = `${base}/stories/${story.slug}`;
     const description = story.subtitle || bodyText(story.blocks).replace(/\s+/g, ' ').slice(0, 180);
     const image = story.cover_id ? mediaUrl(base, story.cover_id, 1600) : null;
     const jsonLd = {'@context':'https://schema.org', '@type':'Article', headline:story.title, description, datePublished:story.published_at, dateModified:story.updated_at,
-      ...(image ? {image:[image]} : {}), ...(story.author ? {author:{'@type':'Person', name:story.author}} : {}),
+      ...(image ? {image:[image]} : {}), ...(story.section_name ? {articleSection:story.section_name} : {}), ...(story.author ? {author:{'@type':'Person', name:story.author}} : {}),
       publisher:{'@type':'Organization', name:'Zahabu Culture Garden', logo:{'@type':'ImageObject', url:`${base}/images/logo-wordmark.png`}}, mainEntityOfPage:canonical};
     return layout(env, url, {title:`${story.title} · Zahabu`, description, canonical, image, jsonLd, body:storyArticle(env, story, sizes, more)});
   }
@@ -436,7 +554,7 @@ ${stories.length ? `<div class="cards">${cards}</div>${pager}` : '<p class="empt
 
   async function feed(env) {
     const base = site(env);
-    const {results} = await env.DB.prepare("SELECT * FROM stories WHERE status = 'published' ORDER BY published_at DESC LIMIT 30").all();
+    const {results} = await env.DB.prepare(`${FULL_SQL} WHERE st.status = 'published' ORDER BY st.published_at DESC LIMIT 30`).all();
     const stories = results.map(rowToStory);
     const sizes = await imageSizes(env, [...new Set(stories.flatMap(imageIds))]);
     const cdata = text => `<![CDATA[${String(text).replace(/]]>/g, ']]]]><![CDATA[>')}]]>`;
@@ -444,7 +562,7 @@ ${stories.length ? `<div class="cards">${cards}</div>${pager}` : '<p class="empt
       const link = `${base}/stories/${story.slug}`;
       const cover = story.cover_id ? `<p><img src="${mediaUrl(base, story.cover_id, 1600)}" alt="${esc(story.cover_alt)}"></p>` : '';
       return `<item><title>${esc(story.title)}</title><link>${link}</link><guid isPermaLink="true">${link}</guid><pubDate>${new Date(story.published_at).toUTCString()}</pubDate>
-${story.author ? `<dc:creator>${esc(story.author)}</dc:creator>` : ''}<description>${esc(story.subtitle || bodyText(story.blocks).slice(0, 300))}</description>
+${story.author ? `<dc:creator>${esc(story.author)}</dc:creator>` : ''}${story.section_name ? `<category>${esc(story.section_name)}</category>` : ''}<description>${esc(story.subtitle || bodyText(story.blocks).slice(0, 300))}</description>
 <content:encoded>${cdata(cover + renderBody(story.blocks, sizes, 'feed', base))}</content:encoded></item>`;
     }).join('\n');
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -459,7 +577,8 @@ ${items}
   async function sitemap(env) {
     const base = site(env);
     const {results} = await env.DB.prepare("SELECT slug, updated_at FROM stories WHERE status = 'published' ORDER BY published_at DESC LIMIT 5000").all();
-    const urls = [`<url><loc>${base}/stories</loc></url>`, ...results.map(row => `<url><loc>${base}/stories/${row.slug}</loc><lastmod>${row.updated_at.slice(0, 10)}</lastmod></url>`)];
+    const {results:sections} = await env.DB.prepare("SELECT slug FROM story_sections sec WHERE EXISTS (SELECT 1 FROM stories st WHERE st.section_id = sec.id AND st.status = 'published') ORDER BY position").all();
+    const urls = [`<url><loc>${base}/stories</loc></url>`, ...sections.map(row => `<url><loc>${base}/stories/section/${row.slug}</loc></url>`), ...results.map(row => `<url><loc>${base}/stories/${row.slug}</loc><lastmod>${row.updated_at.slice(0, 10)}</lastmod></url>`)];
     return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>`, {headers:{'Content-Type':'application/xml; charset=utf-8', 'Cache-Control':'public, max-age=3600'}});
   }
 
@@ -514,7 +633,7 @@ ${inner}
     const cover = story.cover_id ? `<tr><td style="padding:22px 0 0;"><a href="${url}"><img src="${mediaUrl(base, story.cover_id, 1600)}" width="600" alt="${esc(story.cover_alt)}" style="display:block;width:100%;max-width:600px;height:auto;border:0;"></a></td></tr>` : '';
     const inner = `${test ? '<tr><td style="padding:10px 28px;background:#f4ead6;color:#7a5a1e;font-size:12px;letter-spacing:2px;text-transform:uppercase;text-align:center;border-radius:18px 18px 0 0;">Test email: only you got this</td></tr>' : ''}
 <tr><td style="padding:24px 28px 0;"><a href="${base}/stories"><img src="${base}/images/logo-wordmark.png" width="104" alt="ZAHABU" style="display:block;width:104px;height:auto;border:0;font-size:20px;letter-spacing:3px;color:#141814;"></a></td></tr>
-<tr><td style="padding:26px 28px 0;"><p style="margin:0 0 10px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#5f6a63;">Zahabu Stories</p>
+<tr><td style="padding:26px 28px 0;"><p style="margin:0 0 10px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#5f6a63;">Zahabu Stories${story.section_name ? ` · ${esc(story.section_name)}` : ''}</p>
 <h1 style="margin:0;font-size:28px;line-height:1.12;font-weight:normal;text-transform:uppercase;color:#141814;"><a href="${url}" style="color:#141814;text-decoration:none;">${esc(story.title)}</a></h1>
 ${story.subtitle ? `<p style="margin:12px 0 0;font-size:18px;line-height:1.5;color:#3d4640;">${esc(story.subtitle)}</p>` : ''}
 <p style="margin:16px 0 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#5f6a63;">${story.author ? `By ${esc(story.author)} · ` : ''}${esc(formatDate(story.published_at || now()))}</p></td></tr>
@@ -665,9 +784,11 @@ ${emailButton('Confirm subscription', link)}
     if (path === '/stories/feed.xml') return feed(env);
     if (path === '/stories/sitemap.xml') return sitemap(env);
     if (path === '/stories/confirm') return confirmPage(env, url);
+    const sectionMatch = path.match(/^\/stories\/section\/([a-z0-9-]{1,80})$/);
+    if (sectionMatch) return indexPage(env, url, sectionMatch[1]);
     if (path === '/stories/api/latest') {
       const limit = Math.max(1, Math.min(12, Number.parseInt(url.searchParams.get('limit') || '3', 10) || 3));
-      const {results} = await env.DB.prepare("SELECT slug, title, subtitle, author, cover_id, cover_alt, published_at FROM stories WHERE status = 'published' ORDER BY published_at DESC LIMIT ?").bind(limit).all();
+      const {results} = await env.DB.prepare(`${CARD_SQL} WHERE st.status = 'published' ORDER BY st.published_at DESC LIMIT ?`).bind(limit).all();
       return json({stories:results.map(row => publicStory(row, base))}, 200, {'Cache-Control':'public, max-age=60', 'Access-Control-Allow-Origin':'*'});
     }
     const mediaMatch = path.match(/^\/stories\/media\/([0-9a-f-]{36})-(800|1600)\.jpg$/);
@@ -679,10 +800,10 @@ ${emailButton('Confirm subscription', link)}
 
   // ---------- Staff: editor API ----------
 
-  const LIST_COLUMNS = 'id, slug, title, subtitle, author, cover_id AS coverId, status, published_at AS publishedAt, updated_at AS updatedAt, updated_by AS updatedBy, newsletter_sent_at AS newsletterSentAt, newsletter_sent_by AS newsletterSentBy, newsletter_error AS newsletterError';
+  const LIST_COLUMNS = 'id, slug, title, subtitle, author, cover_id AS coverId, section_id AS sectionId, status, published_at AS publishedAt, updated_at AS updatedAt, updated_by AS updatedBy, newsletter_sent_at AS newsletterSentAt, newsletter_sent_by AS newsletterSentBy, newsletter_error AS newsletterError';
   function storyJson(row) {
     const story = rowToStory(row);
-    return {id:story.id, slug:story.slug, title:story.title, subtitle:story.subtitle, author:story.author, coverId:story.cover_id, coverAlt:story.cover_alt, body:story.blocks,
+    return {id:story.id, slug:story.slug, title:story.title, subtitle:story.subtitle, author:story.author, coverId:story.cover_id, coverAlt:story.cover_alt, sectionId:story.section_id || null, body:story.blocks,
       status:story.status, publishedAt:story.published_at, createdAt:story.created_at, createdBy:story.created_by, updatedAt:story.updated_at, updatedBy:story.updated_by,
       newsletterSentAt:story.newsletter_sent_at, newsletterSentBy:story.newsletter_sent_by, newsletterError:story.newsletter_error};
   }
@@ -711,6 +832,8 @@ ${emailButton('Confirm subscription', link)}
     const fields = {title:line(input.title, MAX.title), subtitle:line(input.subtitle, MAX.subtitle), author:line(input.author, MAX.author), coverAlt:line(input.coverAlt, MAX.alt)};
     if (input.coverId && !ID.test(input.coverId)) return {error:'That cover photo could not be found.'};
     fields.coverId = input.coverId || null;
+    if (input.sectionId && !SECTION_ID.test(input.sectionId)) return {error:'That section could not be found.'};
+    fields.sectionId = input.sectionId || null;
     const {blocks, error} = cleanBody(input.body ?? []);
     if (error) return {error};
     fields.blocks = blocks;
@@ -749,7 +872,7 @@ ${emailButton('Confirm subscription', link)}
 
   async function sendNewsletter(env, id, email) {
     if (!newsletterReady(env)) return json({error:'Newsletter sending isn\'t set up yet (Brevo key, sender and list).'}, 503);
-    const story = rowToStory(await env.DB.prepare('SELECT * FROM stories WHERE id = ?').bind(id).first());
+    const story = rowToStory(await env.DB.prepare(`${FULL_SQL} WHERE st.id = ?`).bind(id).first());
     if (!story) return json({error:'That story no longer exists.'}, 404);
     if (story.status !== 'published') return json({error:'Publish the story before emailing it.'}, 400);
     // Claim the send first, so two people pressing Send at once can't email everyone twice.
@@ -776,6 +899,52 @@ ${emailButton('Confirm subscription', link)}
     return json({ok:true, campaignId});
   }
 
+  // ---------- Staff: sections ----------
+
+  const sectionExists = async (env, id) => !id || !!(await env.DB.prepare('SELECT id FROM story_sections WHERE id = ?').bind(id).first());
+  const listSections = async env => (await env.DB.prepare('SELECT id, slug, name, description, position, (SELECT COUNT(*) FROM stories st WHERE st.section_id = story_sections.id) AS storyCount FROM story_sections ORDER BY position, name').all()).results;
+
+  async function sectionsRoute(request, env, url) {
+    const path = url.pathname;
+    if (path === '/admin/api/story-sections' && request.method === 'GET') return json({sections:await listSections(env)});
+    let input = {};
+    if (request.method !== 'GET' && request.method !== 'DELETE') { try { input = await request.json(); } catch { return json({error:'Could not read that.'}, 400); } }
+    const name = cleanLine(input.name, 40);
+    const description = cleanLine(input.description, 200);
+    if (path === '/admin/api/story-sections' && request.method === 'POST') {
+      if (!name) return json({error:'Give the section a name.'}, 400);
+      let base = slugify(name);
+      if (RESERVED_SLUGS.has(base)) base = `${base}-section`;
+      let slug = base;
+      for (let n = 2; await env.DB.prepare('SELECT id FROM story_sections WHERE slug = ?').bind(slug).first(); n++) slug = `${base}-${n}`;
+      const last = await env.DB.prepare('SELECT MAX(position) AS p FROM story_sections').first();
+      await env.DB.prepare('INSERT INTO story_sections (id, slug, name, description, position, created_at) VALUES (?, ?, ?, ?, ?, ?)').bind(crypto.randomUUID(), slug, name, description, (last?.p || 0) + 1, now()).run();
+      return json({sections:await listSections(env)}, 201);
+    }
+    if (path === '/admin/api/story-sections/order' && request.method === 'POST') {
+      const ids = Array.isArray(input.ids) ? input.ids.filter(id => SECTION_ID.test(id)).slice(0, 100) : [];
+      for (const [index, id] of ids.entries()) await env.DB.prepare('UPDATE story_sections SET position = ? WHERE id = ?').bind(index + 1, id).run();
+      return json({sections:await listSections(env)});
+    }
+    const match = path.match(/^\/admin\/api\/story-sections\/([a-z0-9-]{3,64})$/);
+    if (!match) return null;
+    const section = await env.DB.prepare('SELECT id FROM story_sections WHERE id = ?').bind(match[1]).first();
+    if (!section) return json({error:'That section no longer exists.'}, 404);
+    if (request.method === 'PUT') {
+      if (!name) return json({error:'A section needs a name.'}, 400);
+      // The slug (web address) stays the same when a section is renamed, so shared links keep working.
+      await env.DB.prepare('UPDATE story_sections SET name = ?, description = ? WHERE id = ?').bind(name, description, section.id).run();
+      return json({sections:await listSections(env)});
+    }
+    if (request.method === 'DELETE') {
+      const used = await env.DB.prepare('SELECT COUNT(*) AS n FROM stories WHERE section_id = ?').bind(section.id).first();
+      if (used?.n) return json({error:`${used.n} ${used.n === 1 ? 'story is' : 'stories are'} in this section. Move ${used.n === 1 ? 'it' : 'them'} to another section first.`}, 400);
+      await env.DB.prepare('DELETE FROM story_sections WHERE id = ?').bind(section.id).run();
+      return json({sections:await listSections(env)});
+    }
+    return json({error:'Method not allowed.'}, 405);
+  }
+
   async function adminRoute(request, env, url, email) {
     const path = url.pathname;
     const write = !['GET', 'HEAD'].includes(request.method);
@@ -783,19 +952,25 @@ ${emailButton('Confirm subscription', link)}
 
     const previewMatch = path.match(/^\/admin\/stories\/([0-9a-f-]{36})\/preview$/);
     if (previewMatch && request.method === 'GET') {
-      const story = rowToStory(await env.DB.prepare('SELECT * FROM stories WHERE id = ?').bind(previewMatch[1]).first());
+      const story = rowToStory(await env.DB.prepare(`${FULL_SQL} WHERE st.id = ?`).bind(previewMatch[1]).first());
       if (!story) return new Response('Not found', {status:404});
       const sizes = await imageSizes(env, imageIds(story));
       const banner = `<div class="banner">Preview${story.status === 'published' ? ' of the live story, as last saved' : ': not published yet'}</div>`;
       return layout(env, url, {title:`Preview: ${story.title || 'Untitled'}`, robots:'noindex', banner, body:storyArticle(env, story, sizes, [], {preview:true})});
     }
 
+    if (path.startsWith('/admin/api/story-sections')) {
+      const response = await sectionsRoute(request, env, url);
+      if (response) return response;
+    }
+
     if (path === '/admin/api/stories' && request.method === 'GET') {
-      const [{results}, counts] = await Promise.all([
+      const [{results}, counts, sections] = await Promise.all([
         env.DB.prepare(`SELECT ${LIST_COLUMNS} FROM stories ORDER BY CASE status WHEN 'draft' THEN 0 ELSE 1 END, COALESCE(published_at, updated_at) DESC LIMIT 500`).all(),
         env.DB.prepare("SELECT SUM(status = 'confirmed') AS confirmed, SUM(status = 'pending') AS pending, SUM(status = 'unsubscribed') AS unsubscribed FROM subscribers").first(),
+        listSections(env),
       ]);
-      return json({email, stories:results, subscribers:{confirmed:counts?.confirmed || 0, pending:counts?.pending || 0, unsubscribed:counts?.unsubscribed || 0},
+      return json({email, stories:results, sections, subscribers:{confirmed:counts?.confirmed || 0, pending:counts?.pending || 0, unsubscribed:counts?.unsubscribed || 0},
         newsletter:{ready:newsletterReady(env), from:env.NEWSLETTER_FROM || null, fromName:sender(env).name}, site:site(env)});
     }
 
@@ -804,17 +979,18 @@ ${emailButton('Confirm subscription', link)}
       try { input = await request.json(); } catch {}
       const {fields, error} = readStoryFields(input);
       if (error) return json({error}, 400);
+      if (!(await sectionExists(env, fields.sectionId))) return json({error:'That section no longer exists. Pick another.'}, 400);
       const id = crypto.randomUUID();
       const stamp = now();
-      await env.DB.prepare('INSERT INTO stories (id, title, subtitle, author, cover_id, cover_alt, body, status, created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .bind(id, fields.title, fields.subtitle, fields.author, fields.coverId, fields.coverAlt, JSON.stringify(fields.blocks), 'draft', stamp, email, stamp, email).run();
+      await env.DB.prepare('INSERT INTO stories (id, title, subtitle, author, cover_id, cover_alt, section_id, body, status, created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(id, fields.title, fields.subtitle, fields.author, fields.coverId, fields.coverAlt, fields.sectionId, JSON.stringify(fields.blocks), 'draft', stamp, email, stamp, email).run();
       return json({story:storyJson(await env.DB.prepare('SELECT * FROM stories WHERE id = ?').bind(id).first())}, 201);
     }
 
     const storyMatch = path.match(/^\/admin\/api\/stories\/([0-9a-f-]{36})(?:\/(publish|unpublish|test-email|send))?$/);
     if (storyMatch) {
       const [, id, action] = storyMatch;
-      const row = await env.DB.prepare('SELECT * FROM stories WHERE id = ?').bind(id).first();
+      const row = await env.DB.prepare(`${FULL_SQL} WHERE st.id = ?`).bind(id).first();
       if (!row) return json({error:'That story no longer exists. Someone may have deleted it.'}, 404);
 
       if (!action && request.method === 'GET') return json({story:storyJson(row)});
@@ -828,11 +1004,12 @@ ${emailButton('Confirm subscription', link)}
         }
         const {fields, error} = readStoryFields(input);
         if (error) return json({error}, 400);
+        if (!(await sectionExists(env, fields.sectionId))) return json({error:'That section no longer exists. Pick another.'}, 400);
         let slug = row.slug;
         if (fields.slug && fields.slug !== row.slug) slug = await uniqueSlug(env, fields.slug, id);
         if (row.status === 'published' && (!fields.title || !fields.blocks.length)) return json({error:'A published story needs a title and some text.'}, 400);
-        await env.DB.prepare('UPDATE stories SET title = ?, subtitle = ?, author = ?, cover_id = ?, cover_alt = ?, body = ?, slug = ?, updated_at = ?, updated_by = ? WHERE id = ?')
-          .bind(fields.title, fields.subtitle, fields.author, fields.coverId, fields.coverAlt, JSON.stringify(fields.blocks), slug, now(), email, id).run();
+        await env.DB.prepare('UPDATE stories SET title = ?, subtitle = ?, author = ?, cover_id = ?, cover_alt = ?, section_id = ?, body = ?, slug = ?, updated_at = ?, updated_by = ? WHERE id = ?')
+          .bind(fields.title, fields.subtitle, fields.author, fields.coverId, fields.coverAlt, fields.sectionId, JSON.stringify(fields.blocks), slug, now(), email, id).run();
         return json({story:storyJson(await env.DB.prepare('SELECT * FROM stories WHERE id = ?').bind(id).first())});
       }
 
