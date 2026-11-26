@@ -710,6 +710,196 @@
             margin-top:34px;
         }
 
+        /* ---------- NEWSLETTER (floating, bottom right) ---------- */
+        /* Shown once the visitor scrolls past the hero, only while sign-ups work (GET /stories/api/subscribe).
+           Signing up or pressing x hides it (remembered in localStorage: for good after signing up, 30 days after x). */
+
+        .news{
+            position:fixed;
+            right:clamp(16px, 3vw, 28px);
+            bottom:clamp(16px, 3vw, 28px);
+            z-index:30;
+            display:flex;
+            flex-direction:column;
+            align-items:flex-end;
+            gap:12px;
+            max-width:calc(100vw - 32px);
+            opacity:0;
+            transform:translateY(12px);
+            pointer-events:none;
+            transition:opacity .35s ease, transform .35s var(--ease);
+        }
+
+        .news[hidden]{
+            display:none;
+        }
+
+        .news.is-shown{
+            opacity:1;
+            transform:none;
+            pointer-events:auto;
+        }
+
+        .news-pill{
+            display:flex;
+            align-items:center;
+            gap:2px;
+            padding:4px 4px 4px 6px;
+            border-radius:999px;
+            background:var(--ink);
+            color:#fff;
+            box-shadow:0 16px 36px -14px rgba(20,40,20,.6);
+        }
+
+        .news-open,
+        .news-hide{
+            border:0;
+            background:none;
+            color:inherit;
+            font:inherit;
+            cursor:pointer;
+            display:flex;
+            align-items:center;
+        }
+
+        .news-open{
+            gap:10px;
+            padding:9px 12px 9px 10px;
+            font-size:12px;
+            letter-spacing:.16em;
+            text-transform:uppercase;
+        }
+
+        .news-open .icon{
+            font-size:18px;
+        }
+
+        .news-hide{
+            justify-content:center;
+            width:32px;
+            height:32px;
+            border-radius:50%;
+            opacity:.7;
+        }
+
+        .news-hide:hover{
+            opacity:1;
+            background:rgba(255,255,255,.12);
+        }
+
+        .news-card{
+            position:relative;
+            width:340px;
+            max-width:100%;
+            padding:22px 22px 20px;
+            border-radius:var(--radius);
+            background:var(--glass-strong);
+            border:1px solid var(--glass-border);
+            -webkit-backdrop-filter:blur(18px) saturate(1.2);
+            backdrop-filter:blur(18px) saturate(1.2);
+            box-shadow:0 30px 70px -30px rgba(20,40,20,.55);
+        }
+
+        .news-card[hidden]{
+            display:none;
+        }
+
+        .news-card h2{
+            font-weight:normal;
+            font-size:20px;
+            line-height:1.15;
+            text-transform:uppercase;
+            letter-spacing:.02em;
+            padding-right:28px;
+        }
+
+        .news-card p{
+            margin-top:8px;
+            font-size:14px;
+            line-height:1.55;
+            color:var(--ink-soft);
+        }
+
+        .news-close{
+            position:absolute;
+            top:14px;
+            right:14px;
+            width:32px;
+            height:32px;
+            border:0;
+            border-radius:50%;
+            background:rgba(255,255,255,.6);
+            color:var(--ink);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            cursor:pointer;
+        }
+
+        .news-form{
+            display:grid;
+            gap:8px;
+            margin-top:14px;
+        }
+
+        .news-form input[type=email]{
+            width:100%;
+            padding:12px 16px;
+            border-radius:999px;
+            border:1px solid var(--line);
+            background:#fff;
+            font:inherit;
+            font-size:16px;
+            color:var(--ink);
+        }
+
+        .news-form .btn{
+            width:100%;
+            justify-content:center;
+            cursor:pointer;
+            font-family:inherit;
+        }
+
+        .news-note{
+            font-size:13px !important;
+            color:var(--forest) !important;
+        }
+
+        .news-note.is-error{
+            color:#a3312b !important;
+        }
+
+        .news-more{
+            display:inline-block;
+            margin-top:12px;
+            font-size:12px;
+            letter-spacing:.14em;
+            text-transform:uppercase;
+            border-bottom:1px solid currentColor;
+        }
+
+        .news-hp{
+            position:absolute;
+            left:-9999px;
+            width:1px;
+            height:1px;
+            overflow:hidden;
+        }
+
+        @media (max-width:560px){
+
+            .news-card{
+                width:calc(100vw - 32px);
+            }
+        }
+
+        @media (prefers-reduced-motion:reduce){
+
+            .news{
+                transition:none;
+            }
+        }
+
         /* ---------- COMMUNITY ---------- */
 
         .community{
@@ -1496,6 +1686,7 @@
         <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
         <symbol id="i-arrow-up-right" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
         <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+        <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></symbol>
     </svg>
 
     <div class="bg-photo"></div>
@@ -1759,6 +1950,27 @@
         <a href="/stories">Stories</a>
         <span>© 2026 Zahabu Culture Garden</span>
     </footer>
+
+    <!-- Floating newsletter sign-up (posts to /stories/api/subscribe; see "Stories" in AGENTS.md). -->
+    <aside class="news" id="news" aria-label="Newsletter" hidden>
+        <div class="news-card" id="newsCard" role="dialog" aria-labelledby="newsTitle" hidden>
+            <button type="button" class="news-close" id="newsClose" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+            <h2 id="newsTitle">Zahabu Stories</h2>
+            <p>News, features and conversations from the garden, by email. Free, and you can leave any time.</p>
+            <form class="news-form" id="newsForm" novalidate>
+                <input type="email" name="email" id="newsEmail" required maxlength="254" autocomplete="email" placeholder="Your email address" aria-label="Email address">
+                <input class="news-hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+                <div id="newsTurnstile"></div>
+                <button type="submit" class="btn btn-solid" id="newsSubmit">Subscribe</button>
+            </form>
+            <p class="news-note" id="newsNote" role="status" hidden></p>
+            <a class="news-more" href="/stories">Read the stories</a>
+        </div>
+        <div class="news-pill">
+            <button type="button" class="news-open" id="newsOpen" aria-expanded="false" aria-controls="newsCard"><svg class="icon" aria-hidden="true"><use href="#i-mail"/></svg>Newsletter</button>
+            <button type="button" class="news-hide" id="newsHide" aria-label="Hide the newsletter button"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+        </div>
+    </aside>
 
 
     <dialog class="share-dialog" id="shareDialog" aria-labelledby="shareTitle">
@@ -2183,6 +2395,75 @@
         }
 
         loadStories();
+
+        /* ---------- Floating newsletter sign-up ---------- */
+
+        (function(){
+            const news = document.getElementById("news");
+            const card = document.getElementById("newsCard");
+            const open = document.getElementById("newsOpen");
+            const form = document.getElementById("newsForm");
+            const note = document.getElementById("newsNote");
+            const submit = document.getElementById("newsSubmit");
+            const store = {
+                get(key){ try { return localStorage.getItem(key); } catch { return null; } },
+                set(key, value){ try { localStorage.setItem(key, value); } catch {} }
+            };
+            const hiddenUntil = Number(store.get("zahabu-news-hidden") || 0);
+            if (store.get("zahabu-news-done") || hiddenUntil > Date.now()) return;
+            const newsTurnstile = turnstileWidget("#newsTurnstile");
+
+            function setNote(text, isError = false){
+                note.textContent = text;
+                note.classList.toggle("is-error", isError);
+                note.hidden = !text;
+            }
+            function toggle(show){
+                card.hidden = !show;
+                open.setAttribute("aria-expanded", String(show));
+                if (show) { document.getElementById("newsEmail").focus(); newsTurnstile.load(); }
+            }
+            const reveal = () => news.classList.toggle("is-shown", window.scrollY > window.innerHeight * 0.6 || !card.hidden);
+
+            fetch("/stories/api/subscribe").then(response => response.ok ? response.json() : {}).then(status => {
+                if (!status.ready) return;
+                news.hidden = false;
+                reveal();
+                window.addEventListener("scroll", reveal, { passive:true });
+            }).catch(() => {});
+
+            open.addEventListener("click", () => { toggle(card.hidden); reveal(); });
+            document.getElementById("newsClose").addEventListener("click", () => { toggle(false); open.focus(); });
+            document.getElementById("newsHide").addEventListener("click", () => {
+                store.set("zahabu-news-hidden", String(Date.now() + 30 * 24 * 3600 * 1000));
+                news.remove();
+            });
+            document.addEventListener("keydown", event => { if (event.key === "Escape" && !card.hidden) { toggle(false); open.focus(); } });
+            document.getElementById("newsEmail").addEventListener("focus", () => newsTurnstile.load());
+
+            form.addEventListener("submit", async event => {
+                event.preventDefault();
+                const data = new FormData(form);
+                const token = newsTurnstile.token();
+                if (!token) { newsTurnstile.load(); setNote("One moment: finishing the spam check, then press Subscribe again."); return; }
+                data.append("cf-turnstile-response", token);
+                submit.disabled = true;
+                setNote("Sending…");
+                try {
+                    const response = await fetch("/stories/api/subscribe", { method:"POST", body:data });
+                    const body = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(body.error || "Something went wrong. Please try again.");
+                    form.hidden = true;
+                    setNote(body.message || "Almost done: check your inbox and tap Confirm.");
+                    store.set("zahabu-news-done", "1");
+                } catch (error) {
+                    setNote(error.message === "Failed to fetch" ? "No connection. Please try again." : error.message, true);
+                } finally {
+                    submit.disabled = false;
+                    newsTurnstile.reset();
+                }
+            });
+        })();
 
         /* ---------- Share dialog ---------- */
 

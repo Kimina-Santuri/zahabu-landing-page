@@ -358,11 +358,12 @@ a.eyebrow:hover{color:var(--ink)}
 .subscribe .note{font-size:14px;margin-top:10px;color:var(--forest)}
 .subscribe .note.error{color:#a3312b}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
-/* Story page: a wide frosted-glass card (like the rest of the site). Inside, magazine style: text at a comfortable
-   reading width, while the cover, photos, galleries, photo + text and players use the card's full width. */
-article.story{max-width:1120px;margin:0 auto;background:rgba(255,255,255,.72);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:26px;padding:clamp(22px,5vw,64px) clamp(16px,5vw,64px) clamp(28px,5vw,64px);border:1px solid var(--glass-border);box-shadow:0 30px 80px -40px rgba(20,40,20,.4)}
-.story header,.prose{display:grid;grid-template-columns:minmax(0,1fr) min(720px,100%) minmax(0,1fr)}
-.story header>*,.prose>*{grid-column:2;min-width:0}
+/* Story page: a wide card of almost-clear frosted glass, so the garden shows through. Inside, magazine style: the title
+   and text sit on the left at a comfortable reading width, while the cover, photos, galleries, photo + text and players
+   use the card's full width. The blur keeps the watercolour soft enough to read over. */
+article.story{max-width:1120px;margin:0 auto;background:rgba(255,255,255,.22);-webkit-backdrop-filter:blur(28px) saturate(1.15);backdrop-filter:blur(28px) saturate(1.15);border-radius:26px;padding:clamp(22px,5vw,64px) clamp(16px,5vw,64px) clamp(28px,5vw,64px);border:1px solid rgba(255,255,255,.55);box-shadow:0 30px 80px -40px rgba(20,40,20,.35)}
+.story header,.prose{display:grid;grid-template-columns:min(740px,100%) minmax(0,1fr)}
+.story header>*,.prose>*{grid-column:1;min-width:0}
 .story header>.lead-img,.prose>figure,.prose>.split,.prose>.embed{grid-column:1/-1}
 .story header h1{font-weight:normal;font-size:clamp(32px,5.6vw,60px);line-height:1.04;text-transform:uppercase;margin-top:14px;overflow-wrap:break-word}
 .story .dek{font-size:clamp(18px,2.4vw,22px);line-height:1.5;color:var(--ink-soft);margin-top:16px}
@@ -370,7 +371,7 @@ article.story{max-width:1120px;margin:0 auto;background:rgba(255,255,255,.72);-w
 .story .lead-img{margin:34px 0 0}
 .story .lead-img img{width:100%;border-radius:16px;background:#dfe7e0}
 .prose{margin-top:40px}
-.prose p,.prose li{font-size:18px;line-height:1.75;color:var(--body)}
+.prose p,.prose li{font-size:18px;line-height:1.75;color:#1d2621}
 .prose p+p,.prose p+ul,.prose p+ol,.prose ul+p,.prose ol+p{margin-top:18px}
 .prose h2{font-weight:normal;font-size:clamp(21px,2.8vw,26px);line-height:1.2;text-transform:uppercase;letter-spacing:.02em;margin:44px 0 14px}
 .prose h3{font-weight:normal;font-size:20px;line-height:1.3;margin:32px 0 10px}
@@ -416,7 +417,7 @@ article.story{max-width:1120px;margin:0 auto;background:rgba(255,255,255,.72);-w
 .prose .event-info h3{margin:0;font-size:21px;line-height:1.2}
 .prose .event-info p{font-size:15px;line-height:1.5;color:var(--ink-soft)}
 .event-info .pill{margin-top:6px;text-decoration:none}
-.share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:720px;margin:44px auto 0;padding-top:24px;border-top:1px solid var(--line)}
+.share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:740px;margin:44px 0 0;padding-top:24px;border-top:1px solid var(--line)}
 .share span{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-right:6px}
 .share a,.share button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:44px;height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;font:inherit;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
 .share a:hover,.share button:hover{border-color:var(--ink)}
