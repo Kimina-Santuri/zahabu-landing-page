@@ -627,6 +627,78 @@
             background:var(--ink);
         }
 
+        /* ---------- STORIES (latest from zahabu.co.ke/stories, served by the photos Worker) ---------- */
+
+        .stories{
+            text-align:center;
+        }
+
+        .stories-grid{
+            max-width:1160px;
+            margin:44px auto 0;
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+            gap:18px;
+            text-align:left;
+        }
+
+        .story-card{
+            display:flex;
+            flex-direction:column;
+            border-radius:var(--radius);
+            overflow:hidden;
+            background:var(--glass);
+            border:1px solid var(--glass-border);
+            -webkit-backdrop-filter:blur(18px) saturate(1.2);
+            backdrop-filter:blur(18px) saturate(1.2);
+            box-shadow:0 18px 40px -26px rgba(20,40,20,.5);
+            transition:transform .35s var(--ease);
+        }
+
+        .story-card:hover{
+            transform:translateY(-4px);
+        }
+
+        .story-card img{
+            width:100%;
+            aspect-ratio:16/10;
+            object-fit:cover;
+        }
+
+        .story-card-text{
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+            padding:20px 22px 24px;
+            flex:1;
+        }
+
+        .story-card h3{
+            font-weight:normal;
+            font-size:20px;
+            line-height:1.2;
+            text-transform:uppercase;
+        }
+
+        .story-card p{
+            font-size:15px;
+            line-height:1.55;
+            color:var(--ink-soft);
+        }
+
+        .story-card .story-date{
+            margin-top:auto;
+            padding-top:6px;
+            font-size:12px;
+            letter-spacing:.14em;
+            text-transform:uppercase;
+            color:var(--muted);
+        }
+
+        .stories .btn{
+            margin-top:34px;
+        }
+
         /* ---------- COMMUNITY ---------- */
 
         .community{
@@ -1551,6 +1623,14 @@
             <a class="btn btn-solid reveal" href="code-of-conduct.html">Read the full code of conduct</a>
         </section>
 
+        <!-- Latest stories from zahabu.co.ke/stories. Hidden until at least one story is published; see "Stories" in AGENTS.md. -->
+        <section class="stories" id="stories" hidden>
+            <span class="eyebrow">Stories</span>
+            <h2 class="section-title">From the garden</h2>
+            <div class="stories-grid" id="storiesGrid"></div>
+            <a class="btn btn-ghost" href="/stories">All stories <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"/></svg></a>
+        </section>
+
         <section class="community" id="community" hidden>
             <span class="eyebrow reveal">From the community</span>
             <h2 class="section-title reveal">Moments at Zahabu</h2>
@@ -1640,6 +1720,7 @@
         <a href="code-of-conduct.html">Code of conduct</a>
         <a href="#contact" id="contactFooterLink" hidden>Contact us</a>
         <a href="vendors.html">Vendors</a>
+        <a href="/stories">Stories</a>
         <span>© 2026 Zahabu Culture Garden</span>
     </footer>
 
@@ -2008,6 +2089,55 @@
         }
 
         if (COMMUNITY_ENABLED) loadCommunity();
+
+        /* ---------- Latest stories ---------- */
+
+        // /stories is a Worker route on zahabu.co.ke (and on the :5173 preview); with a plain static server it 404s and the section stays hidden.
+        async function loadStories(){
+            let stories = [];
+            try {
+                const response = await fetch("/stories/api/latest?limit=3");
+                if (!response.ok) return;
+                stories = (await response.json()).stories || [];
+            } catch {
+                return;
+            }
+            if (!stories.length) return;
+            const dateFormat = new Intl.DateTimeFormat("en-GB", { day:"numeric", month:"long", year:"numeric", timeZone:"Africa/Nairobi" });
+            const grid = document.getElementById("storiesGrid");
+            grid.replaceChildren(...stories.map(story => {
+                const card = document.createElement("a");
+                card.className = "story-card";
+                card.href = `/stories/${story.slug}`;
+                if (story.cover) {
+                    const img = document.createElement("img");
+                    img.src = `/stories/media/${story.cover.split("/stories/media/")[1]}`;
+                    img.alt = story.coverAlt || "";
+                    img.loading = "lazy";
+                    img.decoding = "async";
+                    card.append(img);
+                }
+                const text = document.createElement("div");
+                text.className = "story-card-text";
+                const title = document.createElement("h3");
+                title.textContent = story.title;
+                text.append(title);
+                if (story.subtitle) {
+                    const sub = document.createElement("p");
+                    sub.textContent = story.subtitle;
+                    text.append(sub);
+                }
+                const date = document.createElement("span");
+                date.className = "story-date";
+                date.textContent = dateFormat.format(new Date(story.publishedAt));
+                text.append(date);
+                card.append(text);
+                return card;
+            }));
+            document.getElementById("stories").hidden = false;
+        }
+
+        loadStories();
 
         /* ---------- Share dialog ---------- */
 

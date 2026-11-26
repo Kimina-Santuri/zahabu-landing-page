@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://zahabu.co.ke/sitemap.xml
+Sitemap: https://zahabu.co.ke/stories/sitemap.xml

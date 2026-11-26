@@ -3,7 +3,11 @@
 //          GET /api/contact (is the form ready?), POST /api/contact (contact form: saved to D1, emailed to info@zahabu.co.ke)
 //          POST /api/vendors (vendor enquiry from vendors.html, up to 3 photos: saved to D1 + R2, emailed to info@zahabu.co.ke)
 // Staff:   everything under /admin, gated by Cloudflare Access (verified here too, fail-closed):
-//          /admin (photo review), /admin/messages (contact + vendor enquiries), /admin/vendors/<id> (one vendor enquiry)
+//          /admin (photo review), /admin/messages (contact + vendor enquiries), /admin/vendors/<id> (one vendor enquiry),
+//          /admin/stories (Stories editor and newsletter, see stories.mjs)
+// Stories: zahabu.co.ke/stories* is routed here too (wrangler.photos.toml); stories.mjs serves those pages.
+
+import { createStories } from './stories.mjs';
 
 const MAX_PHOTOS_PER_SUBMISSION = 5;
 const MAX_FULL_BYTES = 3 * 1024 * 1024;
@@ -588,6 +592,9 @@ async function handleAdmin(request, env, url) {
   const email = await accessEmail(request, env);
   if (!email) return new Response('Staff sign-in required.', {status:403});
 
+  const storiesResponse = await stories.adminRoute(request, env, url, email);
+  if (storiesResponse) return storiesResponse;
+
   const mediaMatch = url.pathname.match(/^\/admin\/media\/(thumb|full)\/([0-9a-f-]{36})\.jpg$/);
   if (mediaMatch && request.method === 'GET') return serveMedia(env, mediaMatch[1], mediaMatch[2], {requireApproved:false});
 
@@ -642,7 +649,8 @@ async function handleAdmin(request, env, url) {
 
   if (request.method !== 'GET') return new Response('Method not allowed', {status:405});
   const assetPath = url.pathname === '/admin' || url.pathname === '/admin/' ? '/admin/index.html'
-    : url.pathname === '/admin/messages' ? '/admin/messages.html' : url.pathname;
+    : url.pathname === '/admin/messages' ? '/admin/messages.html'
+    : url.pathname === '/admin/stories' ? '/admin/stories.html' : url.pathname;
   const asset = PHOTO_ASSETS[assetPath];
   if (!asset) return new Response('Not found', {status:404});
   return new Response(Uint8Array.from(atob(asset.data), char => char.charCodeAt(0)), {headers:{
@@ -653,10 +661,15 @@ async function handleAdmin(request, env, url) {
   }});
 }
 
+const stories = createStories({json, escapeHtml, verifyTurnstile, hashIp, sanitizeJpeg, allowedOrigins});
+export const storiesForTests = stories;
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     try {
+      if (url.pathname === '/stories' || url.pathname.startsWith('/stories/')) return await stories.publicRoute(request, env, url);
+      if (url.hostname !== 'photos.zahabu.co.ke' && url.hostname.endsWith('zahabu.co.ke')) return new Response('Not found', {status:404});
       if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return await handleAdmin(request, env, url);
 
       if (url.pathname === '/api/photos') {

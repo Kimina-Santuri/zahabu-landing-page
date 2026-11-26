@@ -8,11 +8,13 @@ await mkdir('dist/.openai',{recursive:true});
 await writeFile('dist/server/index.js',`const ASSETS = ${JSON.stringify(assets)};\n${await readFile('worker.mjs','utf8')}`);
 await cp('.openai/hosting.json','dist/.openai/hosting.json');
 await cp('drizzle','dist/.openai/drizzle',{recursive:true});
-const photoAssetSources = {'/admin/index.html':'admin.html','/admin/admin.js':'admin.js','/admin/messages.html':'messages.html','/admin/messages.js':'messages.js','/admin/logo.png':'images/logo-wordmark.png','/admin/Futura-Regular.ttf':'fonts/Futura-Regular.ttf','/admin/favicon.ico':'images/favicon.ico'};
+const photoAssetSources = {'/admin/index.html':'admin.html','/admin/admin.js':'admin.js','/admin/messages.html':'messages.html','/admin/messages.js':'messages.js','/admin/stories.html':'stories.html','/admin/stories.js':'stories.js','/admin/logo.png':'images/logo-wordmark.png','/admin/Futura-Regular.ttf':'fonts/Futura-Regular.ttf','/admin/favicon.ico':'images/favicon.ico'};
 const photoAssets = {};
 for (const [route, path] of Object.entries(photoAssetSources)) photoAssets[route] = {data:(await readFile(path)).toString('base64'),type:types[path.split('.').pop()]};
 await mkdir('dist/photos',{recursive:true});
 await writeFile('dist/photos/index.js',`const PHOTO_ASSETS = ${JSON.stringify(photoAssets)};\n${await readFile('photos-worker.mjs','utf8')}`);
+// photos-worker.mjs imports ./stories.mjs, so it sits next to the built file.
+await cp('stories.mjs','dist/photos/stories.mjs');
 const inventoryAssetSources = {'/index.html':'inventory.html','/inventory.js':'inventory.js','/logo.png':'images/logo-wordmark.png','/Futura-Regular.ttf':'fonts/Futura-Regular.ttf','/favicon.ico':'images/favicon.ico','/garden-background.jpg':'assets/garden-background.jpg'};
 const inventoryAssets = {};
 for (const [route, path] of Object.entries(inventoryAssetSources)) inventoryAssets[route] = {data:(await readFile(path)).toString('base64'),type:types[path.split('.').pop()]};

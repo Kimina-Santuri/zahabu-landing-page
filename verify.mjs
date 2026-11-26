@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFile, readdir } from 'node:fs/promises';
 import worker from './dist/server/index.js';
-import photosWorker, { sanitizeJpeg } from './dist/photos/index.js';
+import photosWorker, { sanitizeJpeg, storiesForTests as storiesForTestsModule } from './dist/photos/index.js';
 import { localD1 } from './local-bindings.mjs';
 const db = new DatabaseSync(':memory:');
 db.exec(await readFile('drizzle/0000_lying_thanos.sql','utf8'));
@@ -376,3 +376,193 @@ assert.equal(media.size, 0);
 assert.equal((await (await inv('/api/items')).json()).items.length, 0);
 for (const path of ['/','/inventory.js','/logo.png']) assert.equal((await inv(path)).status, 200);
 console.log('Verified equipment inventory: Access fail-closed, editor vs viewer roles, origin check, validation, check logging, photos and cover, delete cleanup.');
+
+// ---------- Stories (editorial + newsletter) ----------
+{
+
+db.exec(await readFile('migrations/0008_stories.sql','utf8'));
+const brevoCalls = [];
+let brevoFail = null;
+const storiesEnv = {...photoEnv, LOCAL_DEV:true, SITE_ORIGIN:'https://zahabu.co.ke', ALLOWED_ORIGINS:'https://zahabu.co.ke', TURNSTILE_SITE_KEY:'site-key',
+  NEWSLETTER_FROM:'stories@zahabu.co.ke', BREVO_LIST_ID:'7', BREVO_WEBHOOK_KEY:'hook-key-1234567890',
+  BREVO_FAKE:async (path, body) => { if (brevoFail && path.includes(brevoFail)) throw Object.assign(new Error('Sender not valid'), {code:'invalid_parameter'}); brevoCalls.push({path, body}); return path === '/emailCampaigns' ? {id:42} : {}; }};
+const publicEnv = {...storiesEnv, LOCAL_DEV:false};
+globalThis.fetch = async (url, init) => String(url).includes('turnstile/v0/siteverify') ? Response.json({success:init.body.get('response') === 'good-token'}) : realFetch(url, init);
+const staff = (path, {method='GET', json, body, origin=photosOrigin}={}) => photosWorker.fetch(new Request(photosOrigin+path, {method,
+  headers:{origin, ...(json ? {'content-type':'application/json'} : {})}, ...(json ? {body:JSON.stringify(json)} : body ? {body} : {})}), storiesEnv);
+const site = (path, init={}, env=publicEnv) => photosWorker.fetch(new Request('https://zahabu.co.ke'+path, init), env);
+
+// Staff only, same-origin writes
+assert.equal((await photosWorker.fetch(new Request(photosOrigin+'/admin/api/stories'), {...storiesEnv, LOCAL_DEV:false})).status, 403, 'stories API needs sign-in');
+assert.equal((await staff('/admin/api/stories', {method:'POST', json:{title:'x'}, origin:'https://evil.example'})).status, 403, 'cross-site write blocked');
+assert.equal((await staff('/admin/stories')).status, 200, 'editor page served');
+assert.equal((await staff('/admin/stories.js')).status, 200);
+
+// Body is checked block by block: no HTML, no javascript: links, unknown embeds and block types dropped
+const body = [
+  {t:'p', c:[{text:'Hello <script>alert(1)</script> '}, {text:'bold', b:true}, {text:' and a ', i:true}, {text:'bad link', href:'javascript:alert(1)'}, {text:' good link', href:'https://zahabu.co.ke/#visit'}]},
+  {t:'h2', c:[{text:'A heading'}]},
+  {t:'quote', c:[{text:'Line one\nLine two'}]},
+  {t:'ul', items:[[{text:'One'}], [{text:''}], [{text:'Two'}]]},
+  {t:'embed', url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ'},
+  {t:'embed', url:'https://evil.example/player'},
+  {t:'embed', url:'https://soundcloud.com/zahabu/sundowner-mix'},
+  {t:'img', id:'../../etc/passwd'},
+  {t:'script', c:[{text:'nope'}]},
+  {t:'hr'}, {t:'hr'},
+  {t:'p', c:[{text:'   '}]},
+];
+const {blocks} = storiesForTestsModule.cleanBody(body);
+assert.deepEqual(blocks.map(b => b.t), ['p', 'h2', 'quote', 'ul', 'embed', 'embed', 'hr']);
+assert.equal(blocks[0].c.find(r => r.text === 'bad link').href, undefined, 'javascript: link dropped');
+assert.equal(blocks[3].items.length, 2, 'empty list item dropped');
+
+// Create, conflict check, publish
+let created = await staff('/admin/api/stories', {method:'POST', json:{title:'Sundowner season & <more>', subtitle:'Every Friday', author:'Comms', body}});
+assert.equal(created.status, 201);
+let story = (await created.json()).story;
+assert.equal(story.status, 'draft');
+assert.equal(story.createdBy, 'preview@localhost');
+assert.equal((await site('/stories/sundowner-season-and-more')).status, 404, 'drafts are not public');
+const firstSave = story.updatedAt;
+await new Promise(resolve => setTimeout(resolve, 5));
+let saved = await staff(`/admin/api/stories/${story.id}`, {method:'PUT', json:{...story, body, baseUpdatedAt:firstSave}});
+assert.equal(saved.status, 200);
+story = (await saved.json()).story;
+const stale = await staff(`/admin/api/stories/${story.id}`, {method:'PUT', json:{...story, body, title:'Older copy', baseUpdatedAt:firstSave}});
+assert.equal(stale.status, 409, 'a stale save is refused');
+assert.ok((await stale.json()).conflict);
+const preview = await staff(`/admin/stories/${story.id}/preview`);
+assert.equal(preview.status, 200);
+assert.match(await preview.text(), /not published yet/);
+assert.equal((await staff(`/admin/api/stories/${story.id}/send`, {method:'POST'})).status, 400, 'cannot email a draft');
+const empty = (await (await staff('/admin/api/stories', {method:'POST', json:{}})).json()).story;
+assert.equal((await staff(`/admin/api/stories/${empty.id}/publish`, {method:'POST'})).status, 400, 'needs a title and text');
+assert.equal((await staff(`/admin/api/stories/${empty.id}`, {method:'DELETE'})).status, 200, 'drafts can be deleted');
+
+let published = await staff(`/admin/api/stories/${story.id}/publish`, {method:'POST'});
+assert.equal(published.status, 200);
+story = (await published.json()).story;
+assert.equal(story.slug, 'sundowner-season-and-more');
+assert.ok(story.publishedAt);
+assert.equal((await staff(`/admin/api/stories/${story.id}`, {method:'DELETE'})).status, 400, 'published stories must be unpublished first');
+const twin = (await (await staff('/admin/api/stories', {method:'POST', json:{title:'Sundowner season & more', body}})).json()).story;
+assert.equal((await (await staff(`/admin/api/stories/${twin.id}/publish`, {method:'POST'})).json()).story.slug, 'sundowner-season-and-more-2', 'slugs stay unique');
+const reserved = (await (await staff('/admin/api/stories', {method:'POST', json:{title:'Media', body}})).json()).story;
+assert.equal((await (await staff(`/admin/api/stories/${reserved.id}/publish`, {method:'POST'})).json()).story.slug, 'media-story', 'reserved paths are not used as slugs');
+
+// Public pages
+const page = await site('/stories/sundowner-season-and-more');
+assert.equal(page.status, 200);
+const html = await page.text();
+assert.ok(html.includes('Sundowner season &amp; &lt;more&gt;'), 'title escaped');
+assert.ok(!html.includes('<script>alert(1)</script>') && html.includes('Hello &lt;script&gt;'), 'body text escaped');
+assert.ok(!html.includes('javascript:'), 'no javascript: links');
+assert.ok(html.includes('href="https://zahabu.co.ke/#visit"'));
+assert.ok(html.includes('data-src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ'), 'YouTube player waits for a tap');
+assert.ok(html.includes('w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fzahabu%2Fsundowner-mix'));
+assert.ok(!html.includes('evil.example'));
+assert.ok(html.includes('Line one<br>Line two'));
+assert.ok(html.includes('"@type":"Article"'));
+assert.ok(html.includes('wa.me/?text='), 'WhatsApp share');
+assert.ok(html.includes('class="subscribe"'), 'subscribe box shows once Brevo is set up');
+const csp = page.headers.get('content-security-policy');
+assert.match(csp, /script-src 'nonce-[0-9a-f]+' https:\/\/challenges\.cloudflare\.com/);
+assert.ok(!/script-src[^;]*unsafe-inline/.test(csp));
+const index = await (await site('/stories')).text();
+assert.ok(index.includes('/stories/sundowner-season-and-more') && index.includes('card lead'));
+assert.equal((await site('/stories/sundowner-season-and-more/')).status, 301, 'trailing slash redirects');
+assert.equal((await site('/stories/no-such-story')).status, 404);
+assert.equal(new URL((await photosWorker.fetch(new Request('https://www.zahabu.co.ke/stories'), publicEnv)).headers.get('location')).host, 'zahabu.co.ke', 'www redirects');
+assert.equal((await photosWorker.fetch(new Request('https://zahabu.co.ke/admin/api/stories'), storiesEnv)).status, 404, 'staff area is only on photos.zahabu.co.ke');
+const feedXml = await (await site('/stories/feed.xml')).text();
+assert.ok(feedXml.includes('<link>https://zahabu.co.ke/stories/sundowner-season-and-more</link>') && feedXml.includes('<content:encoded><![CDATA['));
+assert.ok((await (await site('/stories/sitemap.xml')).text()).includes('<loc>https://zahabu.co.ke/stories/sundowner-season-and-more</loc>'));
+const latest = await (await site('/stories/api/latest?limit=2')).json();
+assert.equal(latest.stories.length, 2);
+assert.equal(latest.stories[0].url.startsWith('https://zahabu.co.ke/stories/'), true);
+assert.equal((await (await site('/stories', {}, {...publicEnv, BREVO_LIST_ID:''})).text()).includes('class="subscribe"'), false, 'no subscribe box without Brevo');
+
+// Photos: re-stripped server-side, public only by id
+const upload = new FormData();
+upload.append('large', new Blob([jpeg(1600, 1067)], {type:'image/jpeg'}), 'large.jpg');
+upload.append('small', new Blob([jpeg(800, 533)], {type:'image/jpeg'}), 'small.jpg');
+const uploaded = await staff('/admin/api/story-images', {method:'POST', body:upload});
+assert.equal(uploaded.status, 201);
+const image = await uploaded.json();
+assert.equal(image.width, 1600);
+assert.ok(!hasText(bucket.get(`stories/${image.id}-1600.jpg`), 'GPS'), 'location data stripped');
+const mediaResponse = await site(`/stories/media/${image.id}-800.jpg`);
+assert.equal(mediaResponse.status, 200);
+assert.match(mediaResponse.headers.get('cache-control'), /immutable/);
+const badUpload = new FormData();
+badUpload.append('large', new Blob(['<svg onload=alert(1)>']), 'x.jpg');
+badUpload.append('small', new Blob(['<svg>']), 'y.jpg');
+assert.equal((await staff('/admin/api/story-images', {method:'POST', body:badUpload})).status, 400);
+
+// Subscribing: Turnstile, double opt-in by button, same answer for everyone, rate limit
+const subscribeForm = (email, token='good-token') => { const form = new FormData(); form.append('email', email); form.append('cf-turnstile-response', token); return form; };
+const subscribeCall = (email, token, ip='10.0.0.1') => site('/stories/api/subscribe', {method:'POST', headers:{origin:'https://zahabu.co.ke', 'cf-connecting-ip':ip}, body:subscribeForm(email, token)});
+assert.equal((await subscribeCall('fan@example.com', 'bad-token')).status, 400, 'spam check');
+assert.equal((await site('/stories/api/subscribe', {method:'POST', headers:{origin:'https://evil.example'}, body:subscribeForm('fan@example.com')})).status, 403);
+assert.equal((await subscribeCall('not-an-email')).status, 400);
+brevoCalls.length = 0;
+const joined = await subscribeCall('Fan@Example.com');
+assert.equal(joined.status, 201);
+const confirmMail = brevoCalls.find(call => call.path === '/smtp/email');
+assert.equal(confirmMail.body.to[0].email, 'fan@example.com');
+const token = confirmMail.body.htmlContent.match(/confirm\?t=([0-9a-f]{48})/)[1];
+let subscriber = db.prepare('SELECT status FROM subscribers WHERE email = ?').get('fan@example.com');
+assert.equal(subscriber.status, 'pending');
+const confirmPage = await (await site(`/stories/confirm?t=${token}`)).text();
+assert.ok(confirmPage.includes('method="post"') && db.prepare('SELECT status FROM subscribers WHERE email = ?').get('fan@example.com').status === 'pending', 'opening the link alone does not confirm (email scanners)');
+brevoCalls.length = 0;
+const confirmForm = new FormData(); confirmForm.append('t', token);
+const confirmed = await site('/stories/api/confirm', {method:'POST', headers:{origin:'https://zahabu.co.ke'}, body:confirmForm});
+assert.equal(confirmed.status, 200);
+assert.equal(db.prepare('SELECT status FROM subscribers WHERE email = ?').get('fan@example.com').status, 'confirmed');
+assert.deepEqual(brevoCalls[0], {path:'/contacts', body:{email:'fan@example.com', listIds:[7], updateEnabled:true, emailBlacklisted:false}});
+brevoCalls.length = 0;
+const again = await subscribeCall('fan@example.com');
+assert.equal(again.status, 201, 'same answer for someone already subscribed');
+assert.equal(brevoCalls.length, 0, 'and no second email');
+for (let n = 0; n < 4; n++) await subscribeCall(`person${n}@example.com`, 'good-token', '10.0.0.9');
+assert.equal((await subscribeCall('person9@example.com', 'good-token', '10.0.0.9')).status, 201);
+assert.equal((await subscribeCall('person10@example.com', 'good-token', '10.0.0.9')).status, 429, 'rate limited per connection');
+assert.equal((await site('/stories/api/subscribe', {method:'POST', headers:{origin:'https://zahabu.co.ke'}, body:subscribeForm('x@example.com')}, {...publicEnv, BREVO_LIST_ID:''})).status, 503);
+
+// Newsletter: test email, send once, failures free the story for another try
+brevoCalls.length = 0;
+assert.equal((await staff(`/admin/api/stories/${story.id}/test-email`, {method:'POST', json:{to:'me@zahabu.co.ke'}})).status, 200);
+assert.match(brevoCalls[0].body.htmlContent, /Test email: only you got this/);
+assert.equal(brevoCalls[0].body.to[0].email, 'me@zahabu.co.ke');
+brevoFail = 'sendNow';
+const failed = await staff(`/admin/api/stories/${story.id}/send`, {method:'POST'});
+assert.equal(failed.status, 502);
+assert.match((await (await staff(`/admin/api/stories/${story.id}`)).json()).story.newsletterError, /Sender not valid/);
+brevoFail = null;
+brevoCalls.length = 0;
+assert.equal((await staff(`/admin/api/stories/${story.id}/send`, {method:'POST'})).status, 200);
+const campaign = brevoCalls.find(call => call.path === '/emailCampaigns').body;
+assert.deepEqual(campaign.recipients, {listIds:[7]});
+assert.equal(campaign.subject, 'Sundowner season & <more>');
+assert.ok(campaign.htmlContent.includes('{{ unsubscribe }}'), 'Brevo unsubscribe link');
+assert.ok(campaign.htmlContent.includes('Sundowner season &amp; &lt;more&gt;'), 'email escapes the title');
+assert.ok(!campaign.htmlContent.includes('<script>alert'), 'email escapes the body');
+assert.ok(brevoCalls.some(call => call.path === '/emailCampaigns/42/sendNow'));
+assert.equal((await staff(`/admin/api/stories/${story.id}/send`, {method:'POST'})).status, 409, 'never sent twice');
+const listing = await (await staff('/admin/api/stories')).json();
+assert.equal(listing.subscribers.confirmed, 1);
+assert.ok(listing.stories.find(s => s.id === story.id).newsletterSentAt);
+
+// Brevo webhook: wrong key ignored, unsubscribes mirrored
+assert.equal((await site('/stories/api/brevo-webhook/wrong-key-1234567890', {method:'POST', body:JSON.stringify({event:'unsubscribed', email:'fan@example.com'})})).status, 404);
+assert.equal((await site('/stories/api/brevo-webhook/hook-key-1234567890', {method:'POST', body:JSON.stringify({event:'unsubscribed', email:'Fan@example.com'})})).status, 200);
+assert.equal(db.prepare('SELECT status FROM subscribers WHERE email = ?').get('fan@example.com').status, 'unsubscribed');
+
+// Unpublish takes it off the site
+assert.equal((await staff(`/admin/api/stories/${story.id}/unpublish`, {method:'POST'})).status, 200);
+assert.equal((await site('/stories/sundowner-season-and-more')).status, 404);
+globalThis.fetch = realFetch;
+console.log('Verified stories: staff-only editor API, body checks and escaping, conflicts, publish/unpublish/slugs, public pages, feed, sitemap, photos, double opt-in subscribe, rate limit, newsletter send-once, Brevo webhook.');
+}

@@ -5,7 +5,12 @@ main = "dist/photos/index.js"
 compatibility_date = "2026-09-16"
 workers_dev = false
 preview_urls = false
-routes = [{ pattern = "photos.zahabu.co.ke", custom_domain = true }]
+# zahabu.co.ke itself is GitHub Pages behind Cloudflare's proxy; only /stories* is sent to this Worker (stories.mjs).
+routes = [
+  { pattern = "photos.zahabu.co.ke", custom_domain = true },
+  { pattern = "zahabu.co.ke/stories*", zone_name = "zahabu.co.ke" },
+  { pattern = "www.zahabu.co.ke/stories*", zone_name = "zahabu.co.ke" },
+]
 
 [[d1_databases]]
 binding = "DB"
@@ -30,6 +35,16 @@ ALLOWED_ORIGINS = "https://zahabu.co.ke,https://www.zahabu.co.ke"
 ACCESS_TEAM_DOMAIN = "muddy-fire-042e.cloudflareaccess.com"
 ACCESS_AUD = "b36b4da28e0fd44c1a706aaca98911a163a6d522873ac592443b1e5901108db2"
 
+# Stories (stories.mjs). The subscribe box and newsletter stay hidden until BREVO_API_KEY, NEWSLETTER_FROM and BREVO_LIST_ID are all set.
+SITE_ORIGIN = "https://zahabu.co.ke"
+TURNSTILE_SITE_KEY = "0x4AAAAAAFHmoNtXVh4PIyD2"
+NEWSLETTER_FROM_NAME = "Zahabu"
+NEWSLETTER_REPLY_TO = "info@zahabu.co.ke"
+# NEWSLETTER_FROM = "stories@zahabu.co.ke"   # a sender verified in Brevo (domain zahabu.co.ke authenticated there)
+# BREVO_LIST_ID = ""                          # id of the "Zahabu Stories" list in Brevo → Contacts → Lists
+
 # Secrets (set with `npx wrangler secret put <NAME> -c wrangler.photos.toml`, never committed):
 #   TURNSTILE_SECRET - secret key of the Turnstile widget for zahabu.co.ke
 #   IP_SALT          - any long random string; salts the hashed IPs used for rate limiting
+#   BREVO_API_KEY    - Brevo → SMTP & API → API keys (set it in the dashboard, not with `!` inside Claude Code)
+#   BREVO_WEBHOOK_KEY - any long random string; also the last part of the webhook URL given to Brevo

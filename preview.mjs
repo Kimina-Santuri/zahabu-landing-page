@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { DatabaseSync } from 'node:sqlite';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
 import worker from './dist/server/index.js';
 import photosWorker from './dist/photos/index.js';
 import inventoryWorker from './inventory-worker.mjs';
@@ -27,12 +27,21 @@ if (!db.prepare('SELECT name FROM _local_migrations WHERE name = ?').get('0007_m
   db.exec(await readFile('migrations/0007_message_status.sql','utf8'));
   db.prepare('INSERT INTO _local_migrations VALUES (?)').run('0007_message_status.sql');
 }
+db.exec(await readFile('migrations/0008_stories.sql','utf8'));
 const env={DB:localD1(db)};
 // Turnstile's published test secret always passes; LOCAL_DEV skips Cloudflare Access for /admin.
 const photosEnv={DB:localD1(db),PHOTOS:localR2('/private/tmp/zahabu-photos-preview'),LOCAL_DEV:true,TURNSTILE_SECRET:'1x0000000000000000000000000000000AA',ALLOWED_ORIGINS:'http://localhost:5173,http://localhost:8123',
   // Contact form emails are printed here instead of sent.
-  CONTACT_FROM:'website@mail.zahabu.co.ke',CONTACT_EMAIL:{send:async message=>console.log('Contact email (not sent):',JSON.stringify(message,null,2))}};
-const isPhotoRoute=path=>path.startsWith('/api/photos')||path==='/api/contact'||path==='/api/vendors'||path.startsWith('/media/')||path==='/admin'||path.startsWith('/admin/');
+  CONTACT_FROM:'website@mail.zahabu.co.ke',CONTACT_EMAIL:{send:async message=>console.log('Contact email (not sent):',JSON.stringify(message,null,2))},
+  // Stories: pages link to this server, and Brevo calls are printed (emails saved as HTML files to look at) instead of sent.
+  SITE_ORIGIN:'http://localhost:5173',TURNSTILE_SITE_KEY:'1x00000000000000000000AA',NEWSLETTER_FROM:'stories@zahabu.co.ke',NEWSLETTER_FROM_NAME:'Zahabu',NEWSLETTER_REPLY_TO:'info@zahabu.co.ke',BREVO_LIST_ID:'2',
+  BREVO_FAKE:async(path,body)=>{
+    const file=`/private/tmp/zahabu-brevo-${Date.now()}.html`;
+    if(body?.htmlContent) await writeFile(file,body.htmlContent);
+    console.log('Brevo call (not sent):',path,JSON.stringify({...body,htmlContent:body?.htmlContent?`saved to ${file}`:undefined}));
+    return path==='/emailCampaigns'?{id:Math.floor(Math.random()*1000)}:{};
+  }};
+const isPhotoRoute=path=>path==='/stories'||path.startsWith('/stories/')||path.startsWith('/api/photos')||path==='/api/contact'||path==='/api/vendors'||path.startsWith('/media/')||path==='/admin'||path.startsWith('/admin/');
 http.createServer(async(req,res)=>{
   try {
     const chunks=[]; for await(const chunk of req) chunks.push(chunk);
@@ -41,7 +50,7 @@ http.createServer(async(req,res)=>{
     const response=isPhotoRoute(path)?await photosWorker.fetch(request,photosEnv):await worker.fetch(request,env);
     res.writeHead(response.status,Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer()));
   } catch (error) {console.error(error);res.writeHead(500);res.end('Preview unavailable');}
-}).listen(5173,'127.0.0.1',()=>console.log('Local: http://localhost:5173/ (site), /tracker.html, /admin (photo review), /admin/messages'));
+}).listen(5173,'127.0.0.1',()=>console.log('Local: http://localhost:5173/ (site), /tracker.html, /admin (photo review), /admin/messages, /admin/stories, /stories'));
 // The inventory owns '/' on its own hostname, so it gets its own port. INVENTORY_ROLE=viewer previews the read-only view.
 const inventoryEnv={DB:localD1(db),MEDIA:localR2('/private/tmp/zahabu-inventory-preview'),LOCAL_DEV:true,EDITOR_EMAILS:process.env.INVENTORY_ROLE==='viewer'?'':'preview@localhost'};
 http.createServer(async(req,res)=>{

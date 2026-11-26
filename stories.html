@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Stories · Zahabu</title>
+  <link rel="icon" href="/admin/favicon.ico">
+  <style>
+    @font-face { font-family:Futura; src:url("/admin/Futura-Regular.ttf") format("truetype"); font-display:swap; }
+    :root { --ink:#141814; --soft-ink:#3d4640; --body:#24302a; --muted:#5f6a63; --line:rgba(20,24,20,.16); --paper:#fff; --soft:#f3f5f2; --forest:#2f5d3a; --danger:#a3312b; --sand:#f4ead6; --sand-ink:#7a5a1e; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:Futura, Arial, sans-serif; color:var(--ink); background:var(--soft); line-height:1.5; }
+    button, input, select, textarea { font:inherit; color:inherit; }
+    button { cursor:pointer; }
+    a { color:inherit; }
+    [hidden] { display:none !important; }
+    :focus-visible { outline:2px solid var(--ink); outline-offset:3px; }
+    .icon { width:18px; height:18px; display:block; flex:none; }
+
+    header.site { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:20px clamp(16px, 4vw, 40px); background:var(--paper); border-bottom:1px solid var(--line); }
+    header.site img { width:96px; display:block; }
+    .nav { display:flex; gap:6px; margin-right:auto; flex-wrap:wrap; }
+    .nav a { padding:8px 14px; border-radius:999px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; text-decoration:none; }
+    .nav a[aria-current="page"] { background:var(--ink); color:#fff; }
+    .who { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+
+    main { padding:32px clamp(16px, 4vw, 40px) 64px; max-width:980px; margin:0 auto; }
+    h1 { font-weight:normal; font-size:clamp(26px, 4vw, 36px); text-transform:uppercase; letter-spacing:.02em; }
+    .intro { color:var(--muted); margin-top:6px; max-width:640px; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:9px 16px; border-radius:999px; border:1px solid var(--ink); background:var(--paper); font-size:12px; letter-spacing:.1em; text-transform:uppercase; text-decoration:none; white-space:nowrap; }
+    .btn.primary { background:var(--ink); color:#fff; }
+    .btn.primary:hover { background:var(--forest); border-color:var(--forest); }
+    .btn.quiet { border-color:var(--line); }
+    .btn.danger { border-color:var(--danger); color:var(--danger); }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    .tag { display:inline-block; font-size:11px; letter-spacing:.12em; text-transform:uppercase; padding:3px 9px; border-radius:999px; background:var(--soft); color:var(--ink); white-space:nowrap; }
+    .tag.live { background:#e1efe4; color:var(--forest); }
+    .tag.draft { background:var(--sand); color:var(--sand-ink); }
+    .tag.mail { background:#e6ecf5; color:#2c4a73; }
+    .tag.warn { background:#f7e1df; color:var(--danger); }
+    .message { padding:14px 18px; margin:16px 0; border-radius:12px; background:var(--paper); border:1px solid var(--line); color:var(--muted); }
+    .message.error { color:var(--danger); border-color:#e8c4c0; background:#fdf4f3; }
+    .message.ok { color:var(--forest); border-color:#c9dfcf; background:#f2f8f3; }
+
+    /* ---------- list view ---------- */
+    .list-head { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:space-between; }
+    .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:28px 0 18px; }
+    .tabs { display:inline-flex; gap:4px; padding:4px; background:var(--paper); border:1px solid var(--line); border-radius:999px; flex-wrap:wrap; }
+    .tab { border:0; background:none; padding:9px 16px; border-radius:999px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; }
+    .tab[aria-pressed="true"] { background:var(--ink); color:#fff; }
+    .count { opacity:.7; margin-left:4px; }
+    .rows { display:grid; gap:10px; }
+    .row { display:grid; grid-template-columns:72px 1fr auto; gap:14px; align-items:center; padding:12px; background:var(--paper); border:1px solid var(--line); border-radius:14px; text-decoration:none; }
+    .row:hover { border-color:var(--ink); }
+    .thumb { width:72px; height:54px; border-radius:8px; background:var(--soft) center/cover no-repeat; }
+    .row-title { font-size:17px; line-height:1.3; overflow-wrap:anywhere; }
+    .row-sub { font-size:13px; color:var(--muted); margin-top:2px; }
+    .row-tags { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
+    .empty { padding:48px 20px; text-align:center; color:var(--muted); background:var(--paper); border:1px dashed var(--line); border-radius:14px; }
+    .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:16px; }
+    .stat { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:16px; }
+    .stat b { display:block; font-weight:normal; font-size:30px; line-height:1; }
+    .stat span { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+    table.subs { width:100%; border-collapse:collapse; background:var(--paper); border:1px solid var(--line); border-radius:14px; overflow:hidden; font-size:14px; }
+    table.subs th, table.subs td { text-align:left; padding:10px 14px; border-bottom:1px solid var(--line); }
+    table.subs th { font-weight:normal; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+    table.subs td:first-child { overflow-wrap:anywhere; }
+
+    /* ---------- editor ---------- */
+    .bar { position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px clamp(12px, 3vw, 28px); background:rgba(255,255,255,.96); border-bottom:1px solid var(--line); backdrop-filter:blur(8px); }
+    .bar .status { font-size:13px; color:var(--muted); margin-right:auto; min-width:0; }
+    .bar .status.dirty { color:var(--sand-ink); }
+    .bar .status.error { color:var(--danger); }
+    .edit-wrap { display:grid; gap:28px; max-width:1200px; margin:0 auto; padding:28px clamp(16px, 4vw, 40px) 120px; }
+    @media (min-width:1100px) { .edit-wrap { grid-template-columns:minmax(0, 1fr) 320px; align-items:start; } .side { position:sticky; top:76px; } }
+    .paper { background:var(--paper); border:1px solid var(--line); border-radius:20px; padding:clamp(18px, 4vw, 48px); min-width:0; }
+    .cover-zone { margin:calc(-1 * clamp(18px, 4vw, 48px)) calc(-1 * clamp(18px, 4vw, 48px)) 24px; border-radius:20px 20px 0 0; overflow:hidden; }
+    .cover-add { all:unset; box-sizing:border-box; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:26px 16px; border-bottom:1px dashed var(--line); color:var(--muted); font-size:13px; letter-spacing:.12em; text-transform:uppercase; }
+    .cover-add:hover { color:var(--ink); background:var(--soft); }
+    .cover-img { position:relative; background:var(--soft); }
+    .cover-img img { width:100%; max-height:420px; object-fit:cover; display:block; }
+    .cover-tools { position:absolute; top:12px; right:12px; display:flex; gap:6px; }
+    .cover-alt { width:100%; border:0; border-bottom:1px solid var(--line); padding:10px clamp(18px, 4vw, 48px); font-size:14px; color:var(--muted); background:var(--paper); }
+    .field-title, .field-sub, .field-author { width:100%; border:0; resize:none; background:none; outline:none; overflow:hidden; display:block; }
+    .field-title { font-size:clamp(28px, 5vw, 46px); line-height:1.08; text-transform:uppercase; }
+    .field-sub { font-size:clamp(18px, 2.4vw, 21px); line-height:1.5; color:var(--soft-ink); margin-top:12px; }
+    .author-line { display:flex; align-items:center; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--line); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+    .field-author { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink); }
+    .field-title::placeholder, .field-sub::placeholder, .field-author::placeholder, .cover-alt::placeholder { color:#a3aca6; }
+
+    .toolbar { position:sticky; top:58px; z-index:10; display:flex; flex-wrap:wrap; gap:2px; align-items:center; margin:22px 0 6px; padding:5px; background:var(--paper); border:1px solid var(--line); border-radius:12px; }
+    .toolbar button, .toolbar select { border:0; background:none; min-width:38px; height:36px; padding:0 9px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; gap:6px; font-size:14px; }
+    .toolbar select { font-size:13px; padding-right:4px; }
+    .toolbar button:hover, .toolbar select:hover { background:var(--soft); }
+    .toolbar button[aria-pressed="true"] { background:var(--ink); color:#fff; }
+    .toolbar .sep { width:1px; height:22px; background:var(--line); margin:0 4px; }
+    .toolbar .label { font-size:12px; letter-spacing:.06em; text-transform:uppercase; }
+    @media (max-width:560px) { .toolbar .label { display:none; } .toolbar { top:96px; } }
+
+    .prose { min-height:320px; outline:none; padding:8px 0 40px; font-size:18px; line-height:1.75; color:var(--body); overflow-wrap:break-word; }
+    .prose:empty::before { content:attr(data-placeholder); color:#a3aca6; }
+    .prose > p:only-child:empty::before, .prose > p:only-child:has(> br:only-child)::before { content:attr(data-placeholder); color:#a3aca6; position:absolute; pointer-events:none; }
+    .prose p, .prose li { font-size:18px; line-height:1.75; }
+    .prose > * + * { margin-top:16px; }
+    .prose h2 { font-weight:normal; font-size:25px; line-height:1.2; text-transform:uppercase; letter-spacing:.02em; margin-top:36px; color:var(--ink); }
+    .prose h3 { font-weight:normal; font-size:20px; line-height:1.3; margin-top:28px; color:var(--ink); }
+    .prose a { color:var(--forest); }
+    .prose b, .prose strong { font-weight:normal; color:var(--ink); background:linear-gradient(transparent 62%, rgba(47,93,58,.2) 0); }
+    .prose ul, .prose ol { padding-left:1.3em; }
+    .prose blockquote { padding-left:20px; border-left:3px solid var(--forest); font-size:22px; line-height:1.5; color:var(--ink); }
+    .prose hr { border:0; height:1px; background:var(--line); margin:32px 0; }
+    .prose figure { margin:28px 0; position:relative; user-select:none; }
+    .prose figure.selected { outline:2px solid var(--forest); outline-offset:4px; border-radius:12px; }
+    .prose figure img { width:100%; border-radius:12px; display:block; background:var(--soft); }
+    .fig-fields { display:grid; gap:6px; margin-top:8px; }
+    .fig-fields input { width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:14px; background:var(--paper); user-select:text; }
+    .fig-tools { position:absolute; top:10px; right:10px; display:flex; gap:6px; }
+    .fig-tools button { border:0; border-radius:999px; background:rgba(255,255,255,.95); padding:7px 12px; font-size:11px; letter-spacing:.1em; text-transform:uppercase; box-shadow:0 2px 8px rgba(0,0,0,.15); }
+    .embed-card { display:flex; align-items:center; gap:14px; padding:16px 18px; border-radius:12px; background:var(--ink); color:#fff; min-height:90px; padding-right:110px; }
+    .embed-card .kind { font-size:11px; letter-spacing:.14em; text-transform:uppercase; opacity:.7; }
+    .embed-card .url { font-size:14px; overflow-wrap:anywhere; }
+    .embed-card img { width:120px; aspect-ratio:16/9; object-fit:cover; border-radius:6px; flex:none; }
+    .uploading { padding:40px; text-align:center; border-radius:12px; background:var(--soft); color:var(--muted); font-size:14px; }
+
+    .side { display:grid; gap:16px; }
+    .panel { background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px; }
+    .panel h2 { font-weight:normal; font-size:13px; letter-spacing:.16em; text-transform:uppercase; margin-bottom:10px; }
+    .panel p { font-size:14px; color:var(--muted); }
+    .panel p + p { margin-top:8px; }
+    .panel .btn { margin-top:12px; }
+    .panel label { display:block; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-top:12px; }
+    .input { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--paper); font-size:15px; margin-top:6px; }
+    .slug-row { display:flex; align-items:center; border:1px solid var(--line); border-radius:10px; margin-top:6px; overflow:hidden; font-size:14px; }
+    .slug-row span { padding:10px 0 10px 12px; color:var(--muted); white-space:nowrap; }
+    .slug-row input { flex:1; min-width:0; border:0; padding:10px 12px 10px 0; font-size:14px; outline:none; }
+    .hint { font-size:13px; color:var(--muted); margin-top:6px; }
+    .hint.warn { color:var(--sand-ink); }
+    .test-row { display:flex; gap:6px; margin-top:6px; }
+    .test-row .input { margin-top:0; }
+    .test-row .btn { margin-top:0; }
+    .stats-line { font-size:13px; color:var(--muted); }
+    .link-btn { border:0; background:none; color:var(--danger); font-size:13px; text-decoration:underline; padding:0; }
+
+    dialog { border:0; border-radius:18px; padding:0; width:min(480px, calc(100vw - 32px)); box-shadow:0 30px 80px -20px rgba(0,0,0,.45); }
+    dialog::backdrop { background:rgba(20,24,20,.45); }
+    dialog form { padding:24px; display:grid; gap:12px; }
+    dialog h2 { font-weight:normal; font-size:20px; text-transform:uppercase; letter-spacing:.02em; }
+    dialog p { font-size:15px; color:var(--soft-ink); }
+    .check { display:flex; gap:10px; align-items:flex-start; font-size:15px; padding:12px; border:1px solid var(--line); border-radius:12px; }
+    .check input { margin-top:5px; width:18px; height:18px; accent-color:var(--forest); }
+    .dialog-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin-top:6px; }
+    @media (max-width:560px) { .row { grid-template-columns:56px 1fr; } .thumb { width:56px; height:44px; } .row-tags { grid-column:1 / -1; justify-content:flex-start; } .bar .btn .label { display:none; } }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-bold" viewBox="0 0 24 24"><path d="M7 4h6a4 4 0 0 1 0 8H7zM7 12h7a4 4 0 0 1 0 8H7z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></symbol>
+    <symbol id="i-italic" viewBox="0 0 24 24"><path d="M14 4h-4M14 20h-4M14.5 4 9.5 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-quote" viewBox="0 0 24 24"><path d="M6 17c-1.5-1-2-2.6-2-4.5C4 9 6 7 9 6.5l.5 1.3C7.7 8.6 7 9.7 7 11h3v6zm9 0c-1.5-1-2-2.6-2-4.5 0-3.5 2-5.5 5-6l.5 1.3C16.7 8.6 16 9.7 16 11h3v6z" fill="currentColor"/></symbol>
+    <symbol id="i-ul" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="4.5" cy="6" r="1.5" fill="currentColor"/><circle cx="4.5" cy="12" r="1.5" fill="currentColor"/><circle cx="4.5" cy="18" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-ol" viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4.5h1.5V9M3.5 9h3M3.5 13.5c.3-.6.9-1 1.6-1 .8 0 1.4.5 1.4 1.2 0 1.2-3 2-3 3.3h3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="10" r="1.8" fill="currentColor"/><path d="m4 18 5-5 3 3 3-3 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 9v6l5-3z" fill="currentColor"/></symbol>
+    <symbol id="i-hr" viewBox="0 0 24 24"><path d="M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="7" cy="6" r="1" fill="currentColor"/><circle cx="12" cy="6" r="1" fill="currentColor"/><circle cx="17" cy="6" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </svg>
+
+  <header class="site" id="siteHeader">
+    <img src="/admin/logo.png" alt="Zahabu">
+    <nav class="nav"><a href="/admin">Photos</a><a href="/admin/messages">Messages</a><a href="/admin/stories" aria-current="page">Stories</a></nav>
+    <span class="who" id="who"></span>
+  </header>
+
+  <!-- ---------- List of stories ---------- -->
+  <main id="listView">
+    <div class="list-head">
+      <div>
+        <h1>Stories</h1>
+        <p class="intro">Write and publish stories on <a id="siteLink" href="https://zahabu.co.ke/stories" target="_blank" rel="noopener">zahabu.co.ke/stories</a>, then email them to subscribers.</p>
+      </div>
+      <a class="btn primary" href="#/new"><svg class="icon"><use href="#i-plus"/></svg>New story</a>
+    </div>
+    <p class="message" id="newsletterNote" hidden></p>
+    <div class="controls">
+      <div class="tabs" role="group" aria-label="Show">
+        <button type="button" class="tab" data-tab="draft" aria-pressed="true">Drafts<span class="count" id="draftCount"></span></button>
+        <button type="button" class="tab" data-tab="published" aria-pressed="false">Published<span class="count" id="publishedCount"></span></button>
+        <button type="button" class="tab" data-tab="subscribers" aria-pressed="false">Subscribers<span class="count" id="subCount"></span></button>
+      </div>
+    </div>
+    <p class="message error" id="listError" hidden></p>
+    <div class="rows" id="rows"></div>
+    <p class="empty" id="listEmpty" hidden></p>
+    <section id="subscribersView" hidden>
+      <div class="stats" id="subStats"></div>
+      <p class="intro" style="margin-bottom:14px">People join from the box on zahabu.co.ke/stories and confirm by email. Anyone who unsubscribes from a newsletter (or whose address bounces) is removed by Brevo and marked here.</p>
+      <p style="margin-bottom:14px"><button type="button" class="btn" id="downloadCsv">Download list (CSV)</button></p>
+      <table class="subs"><thead><tr><th>Email</th><th>Status</th><th>Joined</th></tr></thead><tbody id="subRows"></tbody></table>
+    </section>
+  </main>
+
+  <!-- ---------- Editor ---------- -->
+  <div id="editView" hidden>
+    <div class="bar">
+      <a class="btn quiet" href="#/" id="backBtn"><svg class="icon"><use href="#i-back"/></svg><span class="label">All stories</span></a>
+      <span class="status" id="saveStatus" role="status"></span>
+      <a class="btn quiet" id="previewBtn" target="_blank" rel="noopener"><svg class="icon"><use href="#i-eye"/></svg><span class="label">Preview</span></a>
+      <button type="button" class="btn" id="saveBtn">Save</button>
+      <button type="button" class="btn primary" id="publishBtn">Publish</button>
+    </div>
+    <div class="edit-wrap">
+      <div class="paper">
+        <div class="cover-zone" id="coverZone"></div>
+        <textarea class="field-title" id="title" rows="1" maxlength="160" placeholder="Title"></textarea>
+        <textarea class="field-sub" id="subtitle" rows="1" maxlength="300" placeholder="Subtitle: one line that makes people want to read on"></textarea>
+        <div class="author-line">By <input class="field-author" id="author" maxlength="80" placeholder="Writer's name"></div>
+        <div class="toolbar" id="toolbar" role="toolbar" aria-label="Formatting">
+          <select id="blockType" aria-label="Text style">
+            <option value="p">Text</option>
+            <option value="h2">Heading</option>
+            <option value="h3">Subheading</option>
+          </select>
+          <span class="sep"></span>
+          <button type="button" data-cmd="bold" title="Bold (Ctrl/⌘ B)" aria-label="Bold" aria-pressed="false"><svg class="icon"><use href="#i-bold"/></svg></button>
+          <button type="button" data-cmd="italic" title="Italic (Ctrl/⌘ I)" aria-label="Italic" aria-pressed="false"><svg class="icon"><use href="#i-italic"/></svg></button>
+          <button type="button" data-cmd="link" title="Link (Ctrl/⌘ K)" aria-label="Link" aria-pressed="false"><svg class="icon"><use href="#i-link"/></svg></button>
+          <span class="sep"></span>
+          <button type="button" data-cmd="quote" title="Quote" aria-label="Quote" aria-pressed="false"><svg class="icon"><use href="#i-quote"/></svg></button>
+          <button type="button" data-cmd="ul" title="Bullet list" aria-label="Bullet list" aria-pressed="false"><svg class="icon"><use href="#i-ul"/></svg></button>
+          <button type="button" data-cmd="ol" title="Numbered list" aria-label="Numbered list" aria-pressed="false"><svg class="icon"><use href="#i-ol"/></svg></button>
+          <span class="sep"></span>
+          <button type="button" data-cmd="photo" title="Add a photo" aria-label="Add a photo"><svg class="icon"><use href="#i-photo"/></svg><span class="label">Photo</span></button>
+          <button type="button" data-cmd="embed" title="Add a video or music player" aria-label="Add video or music"><svg class="icon"><use href="#i-play"/></svg><span class="label">Video / music</span></button>
+          <button type="button" data-cmd="hr" title="Divider" aria-label="Divider"><svg class="icon"><use href="#i-hr"/></svg></button>
+        </div>
+        <div class="prose" id="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Story text" data-placeholder="Start writing…" spellcheck="true"></div>
+        <p class="stats-line" id="wordStats"></p>
+      </div>
+
+      <aside class="side">
+        <section class="panel">
+          <h2>Web address</h2>
+          <div class="slug-row"><span>/stories/</span><input id="slug" maxlength="80" placeholder="made from the title" spellcheck="false" autocapitalize="off"></div>
+          <p class="hint" id="slugHint">Letters, numbers and dashes. Made from the title when you publish.</p>
+          <p class="hint" id="liveLink" hidden></p>
+        </section>
+        <section class="panel" id="newsletterPanel">
+          <h2>Newsletter</h2>
+          <p id="newsletterState"></p>
+          <label for="testTo">Send a test to</label>
+          <div class="test-row"><input class="input" id="testTo" type="email" autocomplete="email"><button type="button" class="btn" id="testBtn">Test</button></div>
+          <p class="hint">See how the email looks before it goes to everyone.</p>
+          <button type="button" class="btn primary" id="sendBtn" hidden>Email to subscribers</button>
+        </section>
+        <section class="panel">
+          <h2>About this story</h2>
+          <p id="storyMeta"></p>
+          <p><button type="button" class="link-btn" id="unpublishBtn" hidden>Unpublish (take it off the website)</button></p>
+          <p><button type="button" class="link-btn" id="deleteBtn" hidden>Delete this draft</button></p>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <input type="file" id="photoInput" accept="image/*" hidden>
+  <input type="file" id="coverInput" accept="image/*" hidden>
+
+  <dialog id="linkDialog"><form method="dialog">
+    <h2>Add a link</h2>
+    <input class="input" id="linkUrl" type="url" placeholder="https://…" autocomplete="off">
+    <div class="dialog-actions"><button class="btn quiet" value="remove" id="linkRemove">Remove link</button><button class="btn quiet" value="cancel">Cancel</button><button class="btn primary" value="ok">Add link</button></div>
+  </form></dialog>
+
+  <dialog id="embedDialog"><form method="dialog">
+    <h2>Add video or music</h2>
+    <p>Paste a link from YouTube, Vimeo, SoundCloud, Spotify or Mixcloud. Readers see a player that only loads when they press play.</p>
+    <input class="input" id="embedUrl" type="url" placeholder="https://soundcloud.com/…" autocomplete="off">
+    <p class="hint warn" id="embedError" hidden>That link isn't from one of those sites, or it isn't a track, video, mix or playlist.</p>
+    <div class="dialog-actions"><button class="btn quiet" value="cancel">Cancel</button><button class="btn primary" value="ok" id="embedOk">Add</button></div>
+  </form></dialog>
+
+  <dialog id="publishDialog"><form method="dialog">
+    <h2>Publish this story</h2>
+    <p>It goes live at <b id="publishUrl"></b>.</p>
+    <label class="check" id="publishEmailRow"><input type="checkbox" id="publishEmail"><span id="publishEmailText">Also email it to subscribers now</span></label>
+    <p class="hint" id="publishEmailHint"></p>
+    <div class="dialog-actions"><button class="btn quiet" value="cancel">Not yet</button><button class="btn primary" value="ok">Publish</button></div>
+  </form></dialog>
+
+  <dialog id="confirmDialog"><form method="dialog">
+    <h2 id="confirmTitle"></h2>
+    <p id="confirmText"></p>
+    <div class="dialog-actions"><button class="btn quiet" value="cancel">Cancel</button><button class="btn primary" value="ok" id="confirmOk"></button></div>
+  </form></dialog>
+
+  <script src="/admin/stories.js" defer></script>
+</body>
+</html>
