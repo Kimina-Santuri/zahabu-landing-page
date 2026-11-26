@@ -277,3 +277,8 @@ Opening any HTML file directly (`file://`) does not provide database access — 
 - Home page: floating newsletter sign-up (see "Floating sign-up" under Stories).
 - Verified: tests pass. In Chrome against the preview: the story page reads well over the clearer glass; the pill is hidden on the hero, appears after scrolling, opens, takes an email, passes the test Turnstile and shows "Almost done…" (the preview's fake Brevo logged the confirmation to the test address, reply-to comms@); at the narrowest window (500px) the card fits with 16px gutters and nothing scrolls sideways. Deployed (version noted in git log) and pushed.
 
+## 2026-11-26 (later): landscape clear-glass cards
+
+- Story cards on /stories (also "More stories" under an article) and the home page "From the garden" cards now use the story page's almost-clear frosted glass (`rgba(255,255,255,.22)`, `blur(28px)`) and are **landscape** from 600px up (photo 42% on the left, text on the right; the big first card on /stories keeps its larger 56% photo). Below 600px they stack, photo on top. Card grids: /stories `minmax(min(100%,460px),1fr)`; home page is a centred flex row of cards up to 560px wide, so an odd last card (or a lone story) sits centred. Card blurb and meta text slightly darker for contrast on the clearer glass.
+- Verified: tests pass; checked in Chrome against the preview (desktop: two per row, third centred on the home page; narrowest window 500px: stacked, no sideways scroll on either page). Deployed and pushed.
+

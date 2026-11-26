@@ -330,20 +330,22 @@ a.eyebrow:hover{color:var(--ink)}
 .hero h1{font-weight:normal;font-size:clamp(44px,9vw,96px);line-height:.95;text-transform:uppercase;margin-top:12px}
 .hero p{font-size:clamp(17px,2.2vw,20px);line-height:1.55;color:var(--ink-soft);max-width:560px;margin-top:14px}
 @media(min-width:860px){.hero{grid-template-columns:1.2fr 1fr}}
-.cards{max-width:1080px;margin:0 auto;display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
-.card{display:flex;flex-direction:column;background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:18px;overflow:hidden;text-decoration:none;border:1px solid var(--glass-border);box-shadow:0 18px 40px -26px rgba(20,40,20,.5);transition:transform .2s ease,box-shadow .2s ease}
+.cards{max-width:1080px;margin:0 auto;display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr))}
+/* Cards: the same almost-clear frosted glass as the story page, landscape (photo left, text right) on wider screens. */
+.card{display:flex;flex-direction:column;background:rgba(255,255,255,.22);-webkit-backdrop-filter:blur(28px) saturate(1.15);backdrop-filter:blur(28px) saturate(1.15);border-radius:18px;overflow:hidden;text-decoration:none;border:1px solid rgba(255,255,255,.55);box-shadow:0 18px 40px -26px rgba(20,40,20,.45);transition:transform .2s ease,box-shadow .2s ease}
+@media(min-width:600px){.card{flex-direction:row}.card .cover{flex:0 0 42%;aspect-ratio:auto;min-height:230px}.card .text{flex:1;min-width:0;justify-content:center}}
 .card:hover{transform:translateY(-2px);box-shadow:0 18px 40px -26px rgba(20,40,20,.45)}
 .card .cover{aspect-ratio:16/10;background:#dfe7e0;overflow:hidden}
 .card .cover img{width:100%;height:100%;object-fit:cover}
-.card .text{padding:18px 20px 22px;display:flex;flex-direction:column;gap:8px}
+.card .text{padding:20px 22px 22px;display:flex;flex-direction:column;gap:8px}
 .card h2{font-weight:normal;font-size:21px;line-height:1.2;text-transform:uppercase;letter-spacing:.01em}
 .card .dek{font-size:13px;line-height:1.45;letter-spacing:.08em;text-transform:uppercase;color:var(--forest)}
-.card .blurb{font-size:15px;line-height:1.6;color:var(--ink-soft)}
+.card .blurb{font-size:15px;line-height:1.6;color:#1d2621}
 .card .read{align-self:flex-start;margin-top:10px}
-.card .meta{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:auto;padding-top:6px}
+.card .meta{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-top:auto;padding-top:6px}
 .card.lead{grid-column:1/-1}
 .card.lead .meta{margin-top:0;padding-top:0}
-@media(min-width:760px){.card.lead{flex-direction:row}.card.lead .cover{flex:1.3;aspect-ratio:auto;min-height:380px}.card.lead .text{flex:1;justify-content:center;gap:12px;padding:36px 36px 40px}.card.lead h2{font-size:clamp(26px,3vw,38px);line-height:1.08}.card.lead .blurb{font-size:17px;line-height:1.65}}
+@media(min-width:760px){.card.lead{flex-direction:row}.card.lead .cover{flex:0 0 56%;aspect-ratio:auto;min-height:380px}.card.lead .text{flex:1;justify-content:center;gap:12px;padding:36px 36px 40px}.card.lead h2{font-size:clamp(26px,3vw,38px);line-height:1.08}.card.lead .blurb{font-size:17px;line-height:1.65}}
 .empty{max-width:1080px;margin:0 auto;padding:56px 20px;text-align:center;color:var(--ink-soft);background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border:1px solid var(--glass-border);border-radius:18px}
 .pager{max-width:1080px;margin:28px auto 0;display:flex;justify-content:space-between;gap:12px}
 .pill{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:999px;border:1px solid var(--ink);background:var(--paper);font-size:12px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;color:var(--ink);cursor:pointer;font-family:inherit}
@@ -423,7 +425,7 @@ article.story{max-width:1120px;margin:0 auto;background:rgba(255,255,255,.22);-w
 .share a:hover,.share button:hover{border-color:var(--ink)}
 .after{max-width:1120px;margin:24px auto 0;display:grid;grid-template-columns:minmax(0,1fr);gap:24px}
 .more h2{font-weight:normal;font-size:14px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink);margin-bottom:12px}
-.more .cards{grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr))}
+.more .cards{grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr))}
 .more .card h2{font-size:17px;color:var(--ink);letter-spacing:.01em;margin:0}
 .banner{position:sticky;top:0;z-index:5;background:#f4ead6;color:#7a5a1e;text-align:center;padding:10px 16px;font-size:13px;letter-spacing:.12em;text-transform:uppercase}
 .notice{max-width:560px;margin:8vh auto;background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:22px;padding:clamp(24px,6vw,48px);border:1px solid var(--glass-border);text-align:center;box-shadow:0 30px 80px -40px rgba(20,40,20,.4)}
