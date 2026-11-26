@@ -610,6 +610,15 @@ assert.ok(storyHtml.includes('class="eyebrow" href="https://zahabu.co.ke/stories
 assert.ok((await (await site('/stories/sitemap.xml')).text()).includes('/stories/section/features'));
 assert.equal((await (await site('/stories/api/latest')).json()).stories.find(x => x.slug === 'sundowner-season-and-more').section, 'Features');
 
+// Home page: newest story per section, in section order; falls back to newest overall
+const twinStory = (await (await staff(`/admin/api/stories/${twin.id}`)).json()).story;
+await staff(`/admin/api/stories/${twin.id}`, {method:'PUT', json:{...twinStory, sectionId:'sec-news'}});
+const perSection = (await (await site('/stories/api/latest?by=section&limit=8')).json()).stories;
+assert.deepEqual(perSection.map(x => x.section), ['News', 'Features'], 'one per section, in section order');
+assert.equal(perSection[0].slug, 'sundowner-season-and-more-2');
+assert.equal(perSection[1].sectionSlug, 'features');
+await staff(`/admin/api/stories/${twin.id}`, {method:'PUT', json:{...twinStory, sectionId:null}});
+
 // Layout blocks: gallery, photo + text, highlighted note, event card
 const imageA = image.id;
 const richBody = [...body,

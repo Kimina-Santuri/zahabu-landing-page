@@ -273,7 +273,7 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
   const SECTION_ID = /^[a-z0-9-]{3,64}$/;
 
   const publicStory = (row, base) => ({
-    slug:row.slug, title:row.title, subtitle:row.subtitle, author:row.author, publishedAt:row.published_at, section:row.section_name || null,
+    slug:row.slug, title:row.title, subtitle:row.subtitle, author:row.author, publishedAt:row.published_at, section:row.section_name || null, sectionSlug:row.section_slug || null,
     url:`${base}/stories/${row.slug}`, cover:row.cover_id ? mediaUrl(base, row.cover_id, 800) : null, coverAlt:row.cover_alt,
   });
 
@@ -788,7 +788,15 @@ ${emailButton('Confirm subscription', link)}
     if (sectionMatch) return indexPage(env, url, sectionMatch[1]);
     if (path === '/stories/api/latest') {
       const limit = Math.max(1, Math.min(12, Number.parseInt(url.searchParams.get('limit') || '3', 10) || 3));
-      const {results} = await env.DB.prepare(`${CARD_SQL} WHERE st.status = 'published' ORDER BY st.published_at DESC LIMIT ?`).bind(limit).all();
+      // ?by=section: the newest story in each section, in section order (landing page), so every section shows up.
+      // Falls back to the newest stories overall while no published story has a section.
+      let results = [];
+      if (url.searchParams.get('by') === 'section') {
+        results = (await env.DB.prepare(`SELECT * FROM (SELECT st.id, st.slug, st.title, st.subtitle, st.author, st.cover_id, st.cover_alt, st.published_at, sec.name AS section_name, sec.slug AS section_slug, sec.position AS section_position,
+          ROW_NUMBER() OVER (PARTITION BY st.section_id ORDER BY st.published_at DESC) AS rn
+          FROM stories st JOIN story_sections sec ON sec.id = st.section_id WHERE st.status = 'published') WHERE rn = 1 ORDER BY section_position, section_name LIMIT ?`).bind(limit).all()).results;
+      }
+      if (!results.length) results = (await env.DB.prepare(`${CARD_SQL} WHERE st.status = 'published' ORDER BY st.published_at DESC LIMIT ?`).bind(limit).all()).results;
       return json({stories:results.map(row => publicStory(row, base))}, 200, {'Cache-Control':'public, max-age=60', 'Access-Control-Allow-Origin':'*'});
     }
     const mediaMatch = path.match(/^\/stories\/media\/([0-9a-f-]{36})-(800|1600)\.jpg$/);

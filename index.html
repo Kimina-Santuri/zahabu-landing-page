@@ -639,7 +639,7 @@
             max-width:1160px;
             margin:44px auto 0;
             display:grid;
-            grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+            grid-template-columns:repeat(auto-fit, minmax(min(100%, 250px), 1fr));
             gap:18px;
             text-align:left;
         }
@@ -673,6 +673,13 @@
             gap:8px;
             padding:20px 22px 24px;
             flex:1;
+        }
+
+        .story-section{
+            font-size:11px;
+            letter-spacing:.2em;
+            text-transform:uppercase;
+            color:var(--forest);
         }
 
         .story-card h3{
@@ -2123,7 +2130,8 @@
         async function loadStories(){
             let stories = [];
             try {
-                const response = await fetch("/stories/api/latest?limit=3");
+                // The newest story from each section, so every section is on the home page.
+                const response = await fetch("/stories/api/latest?by=section&limit=8");
                 if (!response.ok) return;
                 stories = (await response.json()).stories || [];
             } catch {
@@ -2146,6 +2154,12 @@
                 }
                 const text = document.createElement("div");
                 text.className = "story-card-text";
+                if (story.section) {
+                    const section = document.createElement("span");
+                    section.className = "story-section";
+                    section.textContent = story.section;
+                    text.append(section);
+                }
                 const title = document.createElement("h3");
                 title.textContent = story.title;
                 text.append(title);
@@ -2156,7 +2170,7 @@
                 }
                 const date = document.createElement("span");
                 date.className = "story-date";
-                date.textContent = (story.section ? `${story.section} · ` : "") + dateFormat.format(new Date(story.publishedAt));
+                date.textContent = dateFormat.format(new Date(story.publishedAt));
                 text.append(date);
                 card.append(text);
                 return card;
