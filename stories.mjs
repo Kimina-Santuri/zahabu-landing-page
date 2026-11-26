@@ -21,7 +21,9 @@ const MAX = {title:160, subtitle:300, author:80, alt:300, caption:300, slug:80, 
 const PER_PAGE = 20;
 const MAX_SUBSCRIBES_PER_IP_PER_HOUR = 5;
 const MAX_IMAGE_BYTES = {1600:2.5 * 1024 * 1024, 800:700 * 1024};
-const EMAIL_FONT = "Futura, 'Century Gothic', 'Trebuchet MS', Arial, sans-serif";
+// Not plain "Futura": Apple devices only have Futura Medium/Bold built in, so the email body looked bold there.
+// Apple Mail and iOS Mail load the site's own regular Futura (below); Gmail and others fall back to Century Gothic/Arial.
+const EMAIL_FONT = "'Zahabu Futura', 'Century Gothic', 'Trebuchet MS', Arial, sans-serif";
 const EMBED_HOSTS = ['https://www.youtube-nocookie.com', 'https://player.vimeo.com', 'https://w.soundcloud.com', 'https://open.spotify.com', 'https://www.mixcloud.com'];
 
 export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sanitizeJpeg, allowedOrigins}) {
@@ -488,7 +490,8 @@ ${items}
   const replyTo = env => ({email:env.NEWSLETTER_REPLY_TO || env.NEWSLETTER_FROM});
 
   function emailShell({preheader, inner, footer}) {
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"></head>
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light">
+<style>@font-face{font-family:'Zahabu Futura';src:url('https://zahabu.co.ke/fonts/Futura-Regular.ttf') format('truetype');font-weight:normal;font-style:normal}</style></head>
 <body style="margin:0;padding:0;background:#e9f0ea;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e9f0ea;"><tr><td align="center" style="padding:24px 10px;">

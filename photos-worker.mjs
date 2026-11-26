@@ -257,7 +257,8 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&
 // Everything a visitor typed goes through escapeHtml. The plain-text version is still sent alongside.
 
 const EMAIL_LOGO = 'https://zahabu.co.ke/images/logo-wordmark.png';
-const EMAIL_FONT = "Futura, 'Century Gothic', 'Trebuchet MS', Arial, sans-serif";
+// Not plain "Futura": Apple devices only have Futura Medium/Bold built in, which made the text look bold. Apple Mail loads the site's regular Futura.
+const EMAIL_FONT = "'Zahabu Futura', 'Century Gothic', 'Trebuchet MS', Arial, sans-serif";
 
 // Kenyan numbers are usually typed as 07… or 01…; WhatsApp links need 2547… (same rule as messages.js).
 export function whatsappNumber(phone) {
@@ -277,7 +278,8 @@ function emailHtml({eyebrow, title, subtitle, tag, buttons, rows, message, extra
 <td style="padding:7px 16px 7px 0;vertical-align:top;white-space:nowrap;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#5f6a63;">${escapeHtml(label)}</td>
 <td style="padding:7px 0;vertical-align:top;font-size:15px;color:#141814;word-break:break-word;">${href ? `<a href="${escapeHtml(href)}" style="color:#2f5d3a;">${escapeHtml(value)}</a>` : escapeHtml(value)}</td></tr>`).join('');
   const preheader = message.replace(/\s+/g, ' ').slice(0, 110);
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeHtml(title)}</title></head>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeHtml(title)}</title>
+<style>@font-face{font-family:'Zahabu Futura';src:url('https://zahabu.co.ke/fonts/Futura-Regular.ttf') format('truetype');font-weight:normal;font-style:normal}</style></head>
 <body style="margin:0;padding:0;background:#e9f0ea;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e9f0ea;"><tr><td align="center" style="padding:28px 12px;">
