@@ -31,6 +31,8 @@ async function api(path, {json, ...options} = {}) {
   if (!response.ok) {
     const error = new Error(body.error || (response.status === 403 ? 'Your sign-in has expired. Reload the page to sign in again.' : `Request failed (${response.status}).`));
     error.conflict = !!body.conflict;
+    error.details = body;
+    error.status = response.status;
     throw error;
   }
   return body;
@@ -835,7 +837,7 @@ function changed() {
   if (!state.open) return;
   state.version++;
   clearTimeout(state.autosave);
-  if (!isLive()) state.autosave = setTimeout(() => save().catch(() => {}), 2500);
+  if (!isLive() && !state.conflictPending) state.autosave = setTimeout(() => save().catch(() => {}), 2500);
   refreshStatus();
   updateWordStats();
 }
@@ -854,7 +856,7 @@ function collect() {
   return data;
 }
 
-async function save() {
+async function save({force = false} = {}) {
   clearTimeout(state.autosave);
   if (state.saving) { await state.saving.catch(() => {}); if (!isDirty() && state.id) return true; }
   const version = state.version;
@@ -863,10 +865,11 @@ async function save() {
   setStatus('Saving…');
   state.saving = (async () => {
     const result = state.id
-      ? await api(`/admin/api/stories/${state.id}`, {method:'PUT', json:{...payload, baseUpdatedAt:state.baseUpdatedAt}})
+      ? await api(`/admin/api/stories/${state.id}`, {method:'PUT', json:{...payload, baseUpdatedAt:state.baseUpdatedAt, ...(force ? {force:true} : {})}})
       : await api('/admin/api/stories', {method:'POST', json:payload});
     applyStory(result.story);
     state.savedVersion = version;
+    state.conflictPending = false;
     if (payload.author) storage.set('stories-author', payload.author);
   })();
   try {
@@ -875,12 +878,82 @@ async function save() {
     if (isDirty() && !isLive()) state.autosave = setTimeout(() => save().catch(() => {}), 2500);
     return true;
   } catch (error) {
+    if (error.conflict) {
+      state.saving = null;
+      return resolveConflict(error.details);
+    }
     setStatus(error.message, 'error');
     return false;
   } finally {
     state.saving = null;
   }
 }
+
+// ---------- Two windows on the same story ----------
+// A save from an older copy is refused by the server (409). Instead of losing work, ask:
+//   See their version: your version is saved as a separate draft "… (your copy)", then the latest version loads.
+//   Keep mine: save again with force (replaces theirs).   Decide later: autosave pauses; pressing Save asks again.
+
+async function resolveConflict(info = {}) {
+  if (state.resolving) return false;
+  state.resolving = true;
+  clearTimeout(state.autosave);
+  try {
+    const when = info.updatedAt ? timeOnly.format(new Date(info.updatedAt)) : 'just now';
+    $('conflictText').textContent = `${info.updatedBy || 'Someone'} saved this story at ${when}, in another window or on another device, while you were editing here.`;
+    const choice = await ask($('conflictDialog'));
+    if (choice === 'mine') {
+      state.conflictPending = false;
+      state.resolving = false;
+      const ok = await save({force:true});
+      if (ok) setStatus(`Saved your version over theirs · ${timeOnly.format(new Date())}`);
+      return ok;
+    }
+    if (choice === 'theirs') {
+      setStatus('Keeping your version as a separate draft…');
+      const mine = collect();
+      delete mine.slug;
+      mine.title = `${(mine.title || 'Untitled story').slice(0, 140)} (your copy)`;
+      const copy = (await api('/admin/api/stories', {method:'POST', json:mine})).story;
+      state.stories.unshift({id:copy.id, title:copy.title, status:copy.status, sectionId:copy.sectionId, updatedAt:copy.updatedAt, updatedBy:copy.updatedBy, coverId:copy.coverId});
+      const latest = (await api(`/admin/api/stories/${state.id}`)).story;
+      state.conflictPending = false;
+      fillEditor(latest, {keepScroll:true});
+      setStatus(`Loaded the latest version. Yours is saved as the draft "${copy.title}" (in Drafts).`);
+      return false;
+    }
+    state.conflictPending = true;
+    setStatus('Not saved: a newer version exists. Press Save to choose what to do.', 'error');
+    return false;
+  } catch (error) {
+    state.conflictPending = true;
+    setStatus(error.message, 'error');
+    return false;
+  } finally {
+    state.resolving = false;
+  }
+}
+
+// Every 30 seconds (and when you come back to the tab), look for a newer save of the open story.
+// No unsaved changes here: load it quietly. Unsaved changes here: ask straight away instead of at the next save.
+async function checkForNewer() {
+  if (!state.open || !state.id || document.hidden || state.saving || state.resolving || $('conflictDialog').open) return;
+  let latest;
+  try { latest = (await api(`/admin/api/stories/${state.id}`)).story; }
+  catch (error) {
+    if (error.status === 404) setStatus('This story was deleted in another window. Copy anything you need before leaving.', 'error');
+    return;
+  }
+  if (!state.open || latest.id !== state.id || latest.updatedAt === state.baseUpdatedAt || state.saving) return;
+  if (!isDirty() && !activeUploads && !state.conflictPending) {
+    fillEditor(latest, {keepScroll:true});
+    setStatus(`Updated: ${latest.updatedBy} saved a newer version at ${timeOnly.format(new Date(latest.updatedAt))}.`);
+    return;
+  }
+  resolveConflict({updatedBy:latest.updatedBy, updatedAt:latest.updatedAt});
+}
+setInterval(checkForNewer, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForNewer(); });
 
 function applyStory(story) {
   const first = !state.id;
@@ -971,6 +1044,15 @@ async function openEditor(id) {
     try { story = (await api(`/admin/api/stories/${id}`)).story; }
     catch (error) { setStatus(error.message, 'error'); return; }
   }
+  state.conflictPending = false;
+  fillEditor(story);
+  if (!story) titleField.focus();
+}
+
+// Puts a story (or a blank one) into the editor. keepScroll: used when reloading the open story in place.
+function fillEditor(story, {keepScroll = false} = {}) {
+  const scroll = window.scrollY;
+  state.open = false;
   state.id = story?.id || null;
   state.story = story;
   state.baseUpdatedAt = story?.updatedAt || null;
@@ -992,7 +1074,7 @@ async function openEditor(id) {
   updateWordStats();
   requestAnimationFrame(() => { autosize(titleField); autosize(subtitleField); });
   document.title = `${story?.title || 'New story'} · Stories · Zahabu`;
-  if (!story) titleField.focus();
+  if (keepScroll) requestAnimationFrame(() => window.scrollTo(0, scroll));
 }
 
 // ---------- List ----------

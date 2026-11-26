@@ -203,6 +203,9 @@
     .check { display:flex; gap:10px; align-items:flex-start; font-size:15px; padding:12px; border:1px solid var(--line); border-radius:12px; }
     .check input { margin-top:5px; width:18px; height:18px; accent-color:var(--forest); }
     .dialog-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; margin-top:6px; }
+    .conflict-actions { flex-direction:column; align-items:stretch; }
+    .conflict-actions .btn { white-space:normal; flex-direction:column; gap:2px; padding:10px 16px; }
+    .conflict-actions .sub { font-size:10px; letter-spacing:.06em; opacity:.75; text-transform:none; }
     @media (max-width:560px) { .row { grid-template-columns:56px 1fr; } .thumb { width:56px; height:44px; } .row-tags { grid-column:1 / -1; justify-content:flex-start; } .bar .btn .label { display:none; } }
   </style>
 </head>
@@ -371,6 +374,17 @@
     <label class="check" id="publishEmailRow"><input type="checkbox" id="publishEmail"><span id="publishEmailText">Also email it to subscribers now</span></label>
     <p class="hint" id="publishEmailHint"></p>
     <div class="dialog-actions"><button class="btn quiet" value="cancel">Not yet</button><button class="btn primary" value="ok">Publish</button></div>
+  </form></dialog>
+
+  <dialog id="conflictDialog"><form method="dialog">
+    <h2>Someone saved a newer version</h2>
+    <p id="conflictText"></p>
+    <p class="hint">Nothing is lost either way.</p>
+    <div class="dialog-actions conflict-actions">
+      <button class="btn primary" value="theirs">See their version <span class="sub">(yours is kept as a separate draft)</span></button>
+      <button class="btn" value="mine">Keep mine <span class="sub">(replaces theirs)</span></button>
+      <button class="btn quiet" value="cancel">Decide later</button>
+    </div>
   </form></dialog>
 
   <dialog id="confirmDialog"><form method="dialog">

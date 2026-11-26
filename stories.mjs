@@ -1197,9 +1197,11 @@ ${emailButton('Confirm subscription', link)}
       if (!action && request.method === 'PUT') {
         let input;
         try { input = await request.json(); } catch { return json({error:'Could not read the story.'}, 400); }
-        // Two people editing the same story: the second save is refused instead of silently overwriting the first.
-        if (input.baseUpdatedAt && input.baseUpdatedAt !== row.updated_at) {
-          return json({error:`${row.updated_by} saved this story at ${new Date(row.updated_at).toLocaleTimeString('en-GB', {timeZone:'Africa/Nairobi', hour:'2-digit', minute:'2-digit'})}. Reload to see their changes before saving yours.`, conflict:true}, 409);
+        // Two windows editing the same story: the older copy's save is refused instead of silently overwriting the newer one.
+        // The editor then asks what to do; "Keep mine" resends with force:true.
+        if (input.baseUpdatedAt && input.baseUpdatedAt !== row.updated_at && input.force !== true) {
+          return json({error:`${row.updated_by} saved a newer version at ${new Date(row.updated_at).toLocaleTimeString('en-GB', {timeZone:'Africa/Nairobi', hour:'2-digit', minute:'2-digit'})}.`,
+            conflict:true, updatedBy:row.updated_by, updatedAt:row.updated_at}, 409);
         }
         const {fields, error} = readStoryFields(input);
         if (error) return json({error}, 400);
