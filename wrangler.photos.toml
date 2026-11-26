@@ -22,6 +22,11 @@ database_id = "c1922d96-3031-4de5-97e9-dfe2bc043286"
 binding = "PHOTOS"
 bucket_name = "zahabu-community-photos"
 
+# Mixes uploaded from the Stories editor (stories.mjs). Its own bucket so the editor can show how much of R2's free 10 GB mixes use.
+[[r2_buckets]]
+binding = "MIXES"
+bucket_name = "zahabu-mixes"
+
 # Contact form email. Sends only to info@zahabu.co.ke, which must be a verified Email Routing destination address.
 # The sender (CONTACT_FROM) must be on a domain with Email Routing on: the mail.zahabu.co.ke subdomain, so Zoho keeps zahabu.co.ke's own mail.
 [[send_email]]

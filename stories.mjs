@@ -24,6 +24,10 @@ const MAX_IMAGE_BYTES = {1600:2.5 * 1024 * 1024, 800:700 * 1024};
 // Not plain "Futura": Apple devices only have Futura Medium/Bold built in, so the email body looked bold there.
 // Apple Mail and iOS Mail load the site's own regular Futura (below); Gmail and others fall back to Century Gothic/Arial.
 const EMAIL_FONT = "'Zahabu Futura', 'Century Gothic', 'Trebuchet MS', Arial, sans-serif";
+// Mixes: 8 MB upload parts (R2 needs at least 5 MB per part except the last, and a Worker request must stay under 100 MB).
+const MIX_PART_BYTES = 8 * 1024 * 1024;
+const MAX_MIX_BYTES = 300 * 1024 * 1024;     // about 5 hours at 128 kbps
+const FREE_MIX_BYTES = 10 * 1024 ** 3;       // R2 free storage, shown in the editor's Mixes tab (the bucket holds only mixes)
 const EMBED_HOSTS = ['https://www.youtube-nocookie.com', 'https://player.vimeo.com', 'https://w.soundcloud.com', 'https://open.spotify.com', 'https://www.mixcloud.com'];
 
 export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sanitizeJpeg, allowedOrigins}) {
@@ -130,6 +134,10 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
       } else if (block.t === 'split') {
         if (!ID.test(block.id || '')) continue;
         blocks.push({t:'split', id:block.id, alt:cleanLine(block.alt, MAX.alt), text:cleanText(block.text, 3000), side:block.side === 'right' ? 'right' : 'left'});
+      } else if (block.t === 'mix') {
+        if (!ID.test(block.id || '')) continue;
+        blocks.push({t:'mix', id:block.id, title:cleanLine(block.title, 120), artist:cleanLine(block.artist, 120), recorded:cleanLine(block.recorded, 120),
+          artworkId:ID.test(block.artworkId || '') ? block.artworkId : ''});
       } else if (block.t === 'event') {
         const title = cleanLine(block.title, 120);
         if (!title) continue;
@@ -144,7 +152,7 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
   const plainText = runs => runs.map(run => run.text).join('');
   function bodyText(blocks) {
     return blocks.flatMap(block => block.c ? [plainText(block.c)] : block.items ? block.items.map(plainText)
-      : block.t === 'event' ? [block.title, block.place] : [block.text, block.caption].filter(Boolean)).join('\n');
+      : block.t === 'event' ? [block.title, block.place] : block.t === 'mix' ? [block.title, block.artist] : [block.text, block.caption].filter(Boolean)).join('\n');
   }
   const wordCount = blocks => bodyText(blocks).split(/\s+/).filter(Boolean).length;
   // The story's opening lines for cards: paragraphs, quotes and notes in order, cut at a word boundary.
@@ -155,7 +163,7 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
     return list.length > words ? `${list.slice(0, words).join(' ').replace(/[,;:.!?\u2013\u2014-]+$/, '')}…` : list.join(' ');
   }
   const rowExcerpt = (row, words) => { try { return excerpt(JSON.parse(row.body || '[]'), words); } catch { return ''; } };
-  const imageIds = story => [...new Set([story.cover_id, ...story.blocks.flatMap(b => b.t === 'img' || b.t === 'split' ? [b.id] : b.t === 'gallery' ? b.images.map(i => i.id) : [])].filter(Boolean))];
+  const imageIds = story => [...new Set([story.cover_id, ...story.blocks.flatMap(b => b.t === 'img' || b.t === 'split' ? [b.id] : b.t === 'gallery' ? b.images.map(i => i.id) : b.t === 'mix' && b.artworkId ? [b.artworkId] : [])].filter(Boolean))];
 
   async function imageSizes(env, ids) {
     if (!ids.length) return {};
@@ -163,6 +171,19 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
     return Object.fromEntries(results.map(row => [row.id, row]));
   }
   const mediaUrl = (base, id, size) => `${base}/stories/media/${id}-${size}.jpg`;
+  const mixUrl = (base, id) => `${base}/stories/mixes/${id}.mp3`;
+  // Uploaded mixes used in these blocks (only finished uploads), keyed by id.
+  async function mixInfo(env, blocks) {
+    const ids = [...new Set(blocks.filter(b => b.t === 'mix').map(b => b.id))];
+    if (!ids.length) return {};
+    const {results} = await env.DB.prepare(`SELECT id, duration_seconds, size_bytes FROM mixes WHERE status = 'ready' AND id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+    return Object.fromEntries(results.map(row => [row.id, row]));
+  }
+  const clock = seconds => {
+    const s = Math.max(0, Math.round(seconds || 0));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = String(s % 60).padStart(2, '0');
+    return h ? `${h}:${String(m).padStart(2, '0')}:${r}` : `${m}:${r}`;
+  };
 
   // mode: 'web' (story page), 'feed' (RSS, absolute links), 'email' (inline styles only)
   function renderRuns(runs, mode, base) {
@@ -192,7 +213,7 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
   };
   const eventLine = block => [eventDate(block.date)?.long, block.time, block.place].filter(Boolean).join(' · ');
 
-  function renderBody(blocks, sizes, mode, base) {
+  function renderBody(blocks, sizes, mode, base, mixes = {}) {
     const P = 'margin:0 0 18px;font-size:17px;line-height:1.7;color:#24302a;';
     return blocks.map(block => {
       const runs = block.c ? renderRuns(block.c, mode, base) : '';
@@ -219,6 +240,13 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
           return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:2px -4px 6px;">${rows.join('')}</table>${block.caption ? `<p style="margin:0 0 20px;font-size:13px;line-height:1.5;color:#5f6a63;">${esc(block.caption)}</p>` : '<p style="margin:0 0 14px;"></p>'}`;
         }
         if (block.t === 'split') return `<p style="margin:6px 0 12px;"><img src="${mediaUrl(base, block.id, 1600)}" width="544" alt="${esc(block.alt)}" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px;"></p>${block.text ? textHtml(block.text, {paragraph:`<p style="${P}">`, link:linkStyle}) : ''}`;
+        if (block.t === 'mix') {
+          const mix = mixes[block.id];
+          if (!mix) return '';
+          const art = block.artworkId ? `<td width="104" style="vertical-align:top;padding:14px 0 14px 14px;"><img src="${mediaUrl(base, block.artworkId, 800)}" width="90" height="90" alt="" style="display:block;width:90px;height:90px;object-fit:cover;border:0;border-radius:8px;"></td>` : '';
+          const meta = [block.artist, block.recorded, clock(mix.duration_seconds)].filter(Boolean).join(' · ');
+          return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 22px;background:#141814;border-radius:12px;"><tr>${art}<td style="vertical-align:top;padding:14px 16px;"><p style="margin:0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#a9b5ad;">Mix</p><p style="margin:4px 0 0;font-size:19px;line-height:1.25;color:#ffffff;">${esc(block.title || 'Untitled mix')}</p>${meta ? `<p style="margin:6px 0 0;font-size:14px;line-height:1.5;color:#d6ddd8;">${esc(meta)}</p>` : ''}<a href="${base}/stories/{{SLUG}}#mix-${block.id}" style="display:inline-block;margin-top:10px;padding:9px 18px;border-radius:999px;background:#ffffff;color:#141814;font-size:12px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;">&#9654;&nbsp; Listen</a></td></tr></table>`;
+        }
         if (block.t === 'event') {
           const day = eventDate(block.date);
           const dateCell = day ? `<td width="76" style="vertical-align:top;padding:14px 0 14px 16px;"><div style="width:60px;border-radius:10px;background:#141814;color:#ffffff;text-align:center;padding:8px 0;"><div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;">${day.month}</div><div style="font-size:26px;line-height:1.1;">${day.day}</div><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:.8;">${day.weekday}</div></div></td>` : '';
@@ -256,6 +284,18 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
       if (block.t === 'split') {
         const img = `<img src="${mediaUrl(prefix, block.id, 1600)}" srcset="${mediaUrl(prefix, block.id, 800)} 800w, ${mediaUrl(prefix, block.id, 1600)} 1600w" sizes="(max-width: 640px) 100vw, 340px"${dims(block.id)} alt="${esc(block.alt)}" loading="lazy" decoding="async">`;
         return mode === 'feed' ? `<p>${img}</p>${textHtml(block.text)}` : `<div class="split${block.side === 'right' ? ' right' : ''}"><div class="split-img">${img}</div><div class="split-text">${textHtml(block.text)}</div></div>`;
+      }
+      if (block.t === 'mix') {
+        const mix = mixes[block.id];
+        if (!mix) return '';
+        const meta = [block.artist, block.recorded].filter(Boolean).join(' · ');
+        if (mode === 'feed') return `<p><strong>Mix: ${esc(block.title || 'Untitled mix')}</strong>${meta ? ` (${esc(meta)})` : ''}<br><a href="${base}/stories/{{SLUG}}#mix-${block.id}">Listen on zahabu.co.ke</a></p>`;
+        const art = block.artworkId ? `<img class="mix-art" src="${mediaUrl('', block.artworkId, 800)}" alt="" loading="lazy" decoding="async">` : `<div class="mix-art mix-art-empty" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg></div>`;
+        // preload="none": nothing downloads until someone presses play. Stream only: no download button.
+        return `<div class="mix" id="mix-${block.id}">${art}<div class="mix-body"><span class="eyebrow">Mix</span><h3>${esc(block.title || 'Untitled mix')}</h3>${meta ? `<p class="mix-meta">${esc(meta)}</p>` : ''}
+<audio class="mix-audio" controls preload="none" controlsList="nodownload" src="${mixUrl('', block.id)}"></audio>
+<div class="mix-player" hidden><button type="button" class="mix-play" aria-label="Play ${esc(block.title || 'mix')}"><svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg><svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></button>
+<input type="range" class="mix-seek" min="0" max="${Math.max(1, Math.round(mix.duration_seconds || 0))}" value="0" step="1" aria-label="Position in the mix"><span class="mix-time"><span class="mix-now">0:00</span> / ${clock(mix.duration_seconds)}</span></div></div></div>`;
       }
       if (block.t === 'event') {
         const day = eventDate(block.date);
@@ -419,6 +459,23 @@ article.story{max-width:1120px;margin:0 auto;background:rgba(255,255,255,.22);-w
 .prose .event-info h3{margin:0;font-size:21px;line-height:1.2}
 .prose .event-info p{font-size:15px;line-height:1.5;color:var(--ink-soft)}
 .event-info .pill{margin-top:6px;text-decoration:none}
+.mix{display:flex;gap:18px;align-items:center;margin:30px 0;padding:16px;border-radius:16px;background:var(--ink);color:#fff}
+.mix-art{flex:none;width:112px;height:112px;border-radius:10px;object-fit:cover;background:#2a302b}
+.mix-art-empty{display:flex;align-items:center;justify-content:center;color:#7d8a80}
+.mix-art-empty svg{width:56px;height:56px}
+.mix-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.mix .eyebrow{color:#a9b5ad}
+.prose .mix h3{margin:0;font-size:21px;line-height:1.2;color:#fff;text-transform:none}
+.prose .mix-meta{font-size:14px;line-height:1.5;color:#d6ddd8}
+.mix-audio{width:100%;margin-top:6px}
+.mix-player{display:flex;align-items:center;gap:12px;margin-top:6px}
+.mix-play{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.mix-play svg{width:22px;height:22px}
+.mix-play .i-pause,.mix.playing .mix-play .i-play{display:none}
+.mix.playing .mix-play .i-pause{display:block}
+.mix-seek{flex:1;min-width:0;accent-color:#fff;height:24px}
+.mix-time{flex:none;font-size:12px;letter-spacing:.06em;color:#d6ddd8;font-variant-numeric:tabular-nums}
+@media(max-width:520px){.mix{flex-direction:column;align-items:stretch}.mix-art{width:100%;height:auto;aspect-ratio:1}.mix-time{font-size:11px}}
 .share{display:flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:740px;margin:44px 0 0;padding-top:24px;border-top:1px solid var(--line)}
 .share span{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-right:6px}
 .share a,.share button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:44px;height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;font:inherit;font-size:12px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
@@ -439,8 +496,17 @@ footer a{text-decoration:none}
   }
 
   function pageScript() {
-    // Embeds load only when tapped; share button copies the link; subscribe form posts to /stories/api/subscribe.
-    return `document.addEventListener('click',function(e){
+    // Embeds load only when tapped; share button copies the link; subscribe form posts to /stories/api/subscribe;
+    // mix players get simple controls (one mix plays at a time). Without JavaScript the browser's own audio controls stay.
+    return `document.querySelectorAll('.mix').forEach(function(box){var a=box.querySelector('audio'),ui=box.querySelector('.mix-player'),btn=box.querySelector('.mix-play'),seek=box.querySelector('.mix-seek'),now=box.querySelector('.mix-now'),drag=false;
+function t(s){s=Math.max(0,Math.round(s||0));var h=Math.floor(s/3600),m=Math.floor(s%3600/60),r=String(s%60).padStart(2,'0');return h?h+':'+String(m).padStart(2,'0')+':'+r:m+':'+r}
+a.controls=false;a.hidden=true;ui.hidden=false;
+btn.addEventListener('click',function(){if(a.paused){document.querySelectorAll('.mix audio').forEach(function(o){if(o!==a)o.pause()});a.play()}else a.pause()});
+a.addEventListener('play',function(){box.classList.add('playing');btn.setAttribute('aria-label','Pause')});a.addEventListener('pause',function(){box.classList.remove('playing');btn.setAttribute('aria-label','Play')});
+a.addEventListener('timeupdate',function(){if(!drag){seek.value=a.currentTime;now.textContent=t(a.currentTime)}});
+a.addEventListener('loadedmetadata',function(){if(isFinite(a.duration))seek.max=Math.round(a.duration)});
+seek.addEventListener('input',function(){drag=true;now.textContent=t(seek.value)});seek.addEventListener('change',function(){drag=false;a.currentTime=Number(seek.value);if(a.paused)a.play()})});
+document.addEventListener('click',function(e){
 var b=e.target.closest('.embed-play');if(b){var box=b.closest('.embed'),f=document.createElement('iframe');f.src=box.dataset.src;f.title=b.getAttribute('aria-label');f.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';f.allowFullscreen=true;if(box.dataset.h)f.height=box.dataset.h;box.classList.add('playing');b.replaceWith(f);return}
 var c=e.target.closest('[data-copy]');if(c){var done=function(){c.querySelector('.label').textContent='Copied'};if(navigator.clipboard)navigator.clipboard.writeText(c.dataset.copy).then(done,function(){prompt('Copy this link',c.dataset.copy)});else prompt('Copy this link',c.dataset.copy)}});
 (function(){var forms=document.querySelectorAll('.subscribe form');if(!forms.length)return;var key=document.body.dataset.ts,loading=null;
@@ -543,7 +609,7 @@ ${stories.length ? `<div class="cards">${cards}</div>${pager}` : `<p class="empt
     const eyebrow = story.section_name ? `<a class="eyebrow" href="${base}/stories/section/${story.section_slug}">${esc(story.section_name)}</a>` : `<a class="eyebrow" href="${base}/stories">Stories</a>`;
     return `<main><article class="story"><header>${eyebrow}<h1>${esc(story.title || 'Untitled story')}</h1>${story.subtitle ? `<p class="dek">${esc(story.subtitle)}</p>` : ''}
 <p class="byline">${story.author ? `By ${esc(story.author)} · ` : ''}${preview && !story.published_at ? 'Not published yet' : esc(formatDate(story.published_at))} · ${minutes} min read</p>${cover}</header>
-<div class="prose">${renderBody(story.blocks, sizes, 'web', base)}</div>${share}</article>
+<div class="prose">${renderBody(story.blocks, sizes, 'web', base, story.mixes)}</div>${share}</article>
 <div class="after">${preview ? '' : subscribeBox(env, {heading:'Enjoyed this story?', text:'Get the next one by email. Free, and you can leave any time.'})}${moreHtml}</div></main>`;
   }
 
@@ -551,6 +617,7 @@ ${stories.length ? `<div class="cards">${cards}</div>${pager}` : `<p class="empt
     const base = site(env);
     const story = rowToStory(await env.DB.prepare(`${FULL_SQL} WHERE st.slug = ? AND st.status = 'published'`).bind(slug).first());
     if (!story) return notFound(env, url);
+    story.mixes = await mixInfo(env, story.blocks);
     const [sizes, more] = await Promise.all([
       imageSizes(env, imageIds(story)),
       env.DB.prepare(`${CARD_SQL} WHERE st.status = 'published' AND st.id != ? ORDER BY st.published_at DESC LIMIT 3`).bind(story.id).all().then(r => r.results),
@@ -577,6 +644,7 @@ ${stories.length ? `<div class="cards">${cards}</div>${pager}` : `<p class="empt
     const base = site(env);
     const {results} = await env.DB.prepare(`${FULL_SQL} WHERE st.status = 'published' ORDER BY st.published_at DESC LIMIT 30`).all();
     const stories = results.map(rowToStory);
+    for (const story of stories) story.mixes = await mixInfo(env, story.blocks);
     const sizes = await imageSizes(env, [...new Set(stories.flatMap(imageIds))]);
     const cdata = text => `<![CDATA[${String(text).replace(/]]>/g, ']]]]><![CDATA[>')}]]>`;
     const items = stories.map(story => {
@@ -584,7 +652,7 @@ ${stories.length ? `<div class="cards">${cards}</div>${pager}` : `<p class="empt
       const cover = story.cover_id ? `<p><img src="${mediaUrl(base, story.cover_id, 1600)}" alt="${esc(story.cover_alt)}"></p>` : '';
       return `<item><title>${esc(story.title)}</title><link>${link}</link><guid isPermaLink="true">${link}</guid><pubDate>${new Date(story.published_at).toUTCString()}</pubDate>
 ${story.author ? `<dc:creator>${esc(story.author)}</dc:creator>` : ''}${story.section_name ? `<category>${esc(story.section_name)}</category>` : ''}<description>${esc(story.subtitle || bodyText(story.blocks).slice(0, 300))}</description>
-<content:encoded>${cdata(cover + renderBody(story.blocks, sizes, 'feed', base))}</content:encoded></item>`;
+<content:encoded>${cdata(cover + renderBody(story.blocks, sizes, 'feed', base, story.mixes).replaceAll('{{SLUG}}', story.slug))}</content:encoded></item>`;
     }).join('\n');
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom"><channel>
@@ -607,6 +675,99 @@ ${items}
     const object = await env.PHOTOS.get(`stories/${id}-${size}.jpg`);
     if (!object) return new Response('Not found', {status:404});
     return new Response(object.body, {headers:{'Content-Type':'image/jpeg', 'Cache-Control':'public, max-age=31536000, immutable', 'X-Content-Type-Options':'nosniff'}});
+  }
+
+  // ---------- Mixes: streaming ----------
+
+  // Plays in the browser with seeking (HTTP Range requests). Only finished uploads; ids are unguessable.
+  async function streamMix(request, env, id) {
+    if (!env.MIXES) return new Response('Not found', {status:404});
+    const row = await env.DB.prepare("SELECT id FROM mixes WHERE id = ? AND status = 'ready'").bind(id).first();
+    if (!row) return new Response('Not found', {status:404});
+    const key = `mixes/${id}.mp3`;
+    const headers = {'Content-Type':'audio/mpeg', 'Accept-Ranges':'bytes', 'Cache-Control':'public, max-age=86400', 'Content-Disposition':'inline', 'X-Content-Type-Options':'nosniff'};
+    if (request.method === 'HEAD') {
+      const head = await env.MIXES.head(key);
+      if (!head) return new Response(null, {status:404});
+      return new Response(null, {headers:{...headers, 'Content-Length':String(head.size)}});
+    }
+    const range = request.headers.get('range');
+    const object = await env.MIXES.get(key, range ? {range:request.headers} : {});
+    if (!object) return new Response('Not found', {status:404});
+    if (range && object.range) {
+      const size = object.size;
+      const start = 'suffix' in object.range ? size - object.range.suffix : object.range.offset;
+      const length = 'suffix' in object.range ? object.range.suffix : (object.range.length ?? size - start);
+      return new Response(object.body, {status:206, headers:{...headers, 'Content-Range':`bytes ${start}-${start + length - 1}/${size}`, 'Content-Length':String(length)}});
+    }
+    return new Response(object.body, {headers:{...headers, 'Content-Length':String(object.size)}});
+  }
+
+  // ---------- Mixes: staff library and uploads ----------
+
+  const MIX_COLUMNS = "id, title, artist, recorded, artwork_id AS artworkId, original_name AS originalName, duration_seconds AS durationSeconds, bitrate_kbps AS bitrateKbps, size_bytes AS sizeBytes, status, created_at AS createdAt, created_by AS createdBy, (SELECT COUNT(*) FROM stories st WHERE st.body LIKE '%\"' || mixes.id || '\"%') AS usedIn";
+
+  async function mixesRoute(request, env, url, email) {
+    const path = url.pathname;
+    if (!env.MIXES) return json({error:'Mix storage isn\'t set up yet.'}, 503);
+    if (path === '/admin/api/mixes' && request.method === 'GET') {
+      const {results} = await env.DB.prepare(`SELECT ${MIX_COLUMNS} FROM mixes WHERE status = 'ready' ORDER BY created_at DESC LIMIT 500`).all();
+      const used = await env.DB.prepare("SELECT COALESCE(SUM(size_bytes), 0) AS bytes FROM mixes WHERE status = 'ready'").first();
+      return json({mixes:results, usedBytes:used.bytes, freeBytes:FREE_MIX_BYTES, partBytes:MIX_PART_BYTES, maxBytes:MAX_MIX_BYTES});
+    }
+    let input = {};
+    const isPart = /\/parts\/\d+$/.test(path);
+    if (!isPart && request.method !== 'GET' && request.method !== 'DELETE') { try { input = await request.json(); } catch { return json({error:'Could not read that.'}, 400); } }
+    const meta = {title:cleanLine(input.title, 120), artist:cleanLine(input.artist, 120), recorded:cleanLine(input.recorded, 120), artworkId:ID.test(input.artworkId || '') ? input.artworkId : null};
+
+    if (path === '/admin/api/mixes' && request.method === 'POST') {
+      const size = Number(input.size);
+      if (!(size > 0)) return json({error:'That file is empty.'}, 400);
+      if (size > MAX_MIX_BYTES) return json({error:`That mix is ${Math.round(size / 1048576)} MB after compression; the limit is ${MAX_MIX_BYTES / 1048576} MB (about 5 hours).`}, 413);
+      const id = crypto.randomUUID();
+      const upload = await env.MIXES.createMultipartUpload(`mixes/${id}.mp3`, {httpMetadata:{contentType:'audio/mpeg'}});
+      await env.DB.prepare('INSERT INTO mixes (id, title, artist, recorded, artwork_id, original_name, duration_seconds, bitrate_kbps, size_bytes, status, upload_id, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(id, meta.title, meta.artist, meta.recorded, meta.artworkId, cleanLine(input.originalName, 200), Math.round(Number(input.durationSeconds) || 0) || null,
+          Math.round(Number(input.bitrateKbps) || 0) || null, size, 'uploading', upload.uploadId, now(), email).run();
+      return json({id, partBytes:MIX_PART_BYTES, parts:Math.ceil(size / MIX_PART_BYTES)}, 201);
+    }
+
+    const match = path.match(/^\/admin\/api\/mixes\/([0-9a-f-]{36})(?:\/(parts\/(\d{1,3})|complete))?$/);
+    if (!match) return null;
+    const [, id, action, partNumber] = match;
+    const mix = await env.DB.prepare('SELECT * FROM mixes WHERE id = ?').bind(id).first();
+    if (!mix) return json({error:'That mix no longer exists.'}, 404);
+    const key = `mixes/${id}.mp3`;
+
+    if (partNumber && request.method === 'PUT') {
+      if (mix.status !== 'uploading') return json({error:'This mix has already finished uploading.'}, 409);
+      const n = Number(partNumber);
+      const length = Number(request.headers.get('content-length') || 0);
+      if (n < 1 || n > Math.ceil(mix.size_bytes / MIX_PART_BYTES) || !length || length > MIX_PART_BYTES) return json({error:'That piece of the upload doesn\'t fit.'}, 400);
+      const part = await env.MIXES.resumeMultipartUpload(key, mix.upload_id).uploadPart(n, request.body);
+      return json({partNumber:part.partNumber, etag:part.etag});
+    }
+    if (action === 'complete' && request.method === 'POST') {
+      if (mix.status === 'ready') return json({mix:await env.DB.prepare(`SELECT ${MIX_COLUMNS} FROM mixes WHERE id = ?`).bind(id).first()});
+      const parts = (Array.isArray(input.parts) ? input.parts : []).map(part => ({partNumber:Number(part.partNumber), etag:String(part.etag || '')})).sort((a, b) => a.partNumber - b.partNumber);
+      if (!parts.length || parts.length !== Math.ceil(mix.size_bytes / MIX_PART_BYTES)) return json({error:'Some pieces of the upload are missing. Try again.'}, 400);
+      const object = await env.MIXES.resumeMultipartUpload(key, mix.upload_id).complete(parts);
+      await env.DB.prepare("UPDATE mixes SET status = 'ready', upload_id = NULL, size_bytes = ?, completed_at = ? WHERE id = ?").bind(object?.size || mix.size_bytes, now(), id).run();
+      return json({mix:await env.DB.prepare(`SELECT ${MIX_COLUMNS} FROM mixes WHERE id = ?`).bind(id).first()});
+    }
+    if (!action && request.method === 'PUT') {
+      await env.DB.prepare('UPDATE mixes SET title = ?, artist = ?, recorded = ?, artwork_id = ? WHERE id = ?').bind(meta.title, meta.artist, meta.recorded, meta.artworkId, id).run();
+      return json({mix:await env.DB.prepare(`SELECT ${MIX_COLUMNS} FROM mixes WHERE id = ?`).bind(id).first()});
+    }
+    if (!action && request.method === 'DELETE') {
+      const used = await env.DB.prepare("SELECT COUNT(*) AS n FROM stories WHERE body LIKE ?").bind(`%"${id}"%`).first();
+      if (used?.n) return json({error:`This mix is in ${used.n} ${used.n === 1 ? 'story' : 'stories'}. Remove it from ${used.n === 1 ? 'that story' : 'those stories'} first.`}, 400);
+      if (mix.status === 'uploading' && mix.upload_id) { try { await env.MIXES.resumeMultipartUpload(key, mix.upload_id).abort(); } catch {} }
+      await env.MIXES.delete(key);
+      await env.DB.prepare('DELETE FROM mixes WHERE id = ?').bind(id).run();
+      return json({ok:true});
+    }
+    return json({error:'Method not allowed.'}, 405);
   }
 
   // ---------- Brevo (newsletter + confirmation emails) ----------
@@ -659,7 +820,7 @@ ${inner}
 ${story.subtitle ? `<p style="margin:12px 0 0;font-size:18px;line-height:1.5;color:#3d4640;">${esc(story.subtitle)}</p>` : ''}
 <p style="margin:16px 0 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#5f6a63;">${story.author ? `By ${esc(story.author)} · ` : ''}${esc(formatDate(story.published_at || now()))}</p></td></tr>
 ${cover}
-<tr><td style="padding:26px 28px 0;">${renderBody(story.blocks, {}, 'email', base)}</td></tr>
+<tr><td style="padding:26px 28px 0;">${renderBody(story.blocks, {}, 'email', base, story.mixes).replaceAll('{{SLUG}}', story.slug)}</td></tr>
 <tr><td style="padding:8px 28px 30px;border-top:0;">${emailButton('Read on the website', url)}${emailButton('Share on WhatsApp', `https://wa.me/?text=${encodeURIComponent(`${story.title} ${url}`)}`, false)}</td></tr>`;
     const footer = `You're getting this because you subscribed to Zahabu Stories at <a href="${base}/stories" style="color:#5f6a63;">zahabu.co.ke/stories</a>.<br>
 Zahabu Culture Garden · The Mall, Rooftop · Westlands, Nairobi<br><a href="${unsubscribe}" style="color:#5f6a63;">Unsubscribe</a>`;
@@ -820,6 +981,8 @@ ${emailButton('Confirm subscription', link)}
       if (!results.length) results = (await env.DB.prepare(`${CARD_SQL} WHERE st.status = 'published' ORDER BY st.published_at DESC LIMIT ?`).bind(limit).all()).results;
       return json({stories:results.map(row => publicStory(row, base))}, 200, {'Cache-Control':'public, max-age=60', 'Access-Control-Allow-Origin':'*'});
     }
+    const mixMatch = path.match(/^\/stories\/mixes\/([0-9a-f-]{36})\.mp3$/);
+    if (mixMatch) return streamMix(request, env, mixMatch[1]);
     const mediaMatch = path.match(/^\/stories\/media\/([0-9a-f-]{36})-(800|1600)\.jpg$/);
     if (mediaMatch) return media(env, mediaMatch[1], mediaMatch[2]);
     const slugMatch = path.match(/^\/stories\/([a-z0-9-]{1,80})$/);
@@ -904,6 +1067,7 @@ ${emailButton('Confirm subscription', link)}
     const story = rowToStory(await env.DB.prepare(`${FULL_SQL} WHERE st.id = ?`).bind(id).first());
     if (!story) return json({error:'That story no longer exists.'}, 404);
     if (story.status !== 'published') return json({error:'Publish the story before emailing it.'}, 400);
+    story.mixes = await mixInfo(env, story.blocks);
     // Claim the send first, so two people pressing Send at once can't email everyone twice.
     const claimed = await env.DB.prepare('UPDATE stories SET newsletter_sent_at = ?, newsletter_sent_by = ?, newsletter_error = NULL WHERE id = ? AND newsletter_sent_at IS NULL').bind(now(), email, id).run();
     if (!(claimed?.meta?.changes ?? claimed?.changes)) return json({error:'This story has already been emailed to subscribers.'}, 409);
@@ -977,15 +1141,21 @@ ${emailButton('Confirm subscription', link)}
   async function adminRoute(request, env, url, email) {
     const path = url.pathname;
     const write = !['GET', 'HEAD'].includes(request.method);
-    if (write && (path.startsWith('/admin/api/stor') || path.startsWith('/admin/api/subscribers')) && !sameOrigin(request, url)) return json({error:'Request blocked.'}, 403);
+    if (write && (path.startsWith('/admin/api/stor') || path.startsWith('/admin/api/subscribers') || path.startsWith('/admin/api/mixes')) && !sameOrigin(request, url)) return json({error:'Request blocked.'}, 403);
 
     const previewMatch = path.match(/^\/admin\/stories\/([0-9a-f-]{36})\/preview$/);
     if (previewMatch && request.method === 'GET') {
       const story = rowToStory(await env.DB.prepare(`${FULL_SQL} WHERE st.id = ?`).bind(previewMatch[1]).first());
       if (!story) return new Response('Not found', {status:404});
       const sizes = await imageSizes(env, imageIds(story));
+      story.mixes = await mixInfo(env, story.blocks);
       const banner = `<div class="banner">Preview${story.status === 'published' ? ' of the live story, as last saved' : ': not published yet'}</div>`;
       return layout(env, url, {title:`Preview: ${story.title || 'Untitled'}`, robots:'noindex', banner, body:storyArticle(env, story, sizes, [], {preview:true})});
+    }
+
+    if (path.startsWith('/admin/api/mixes')) {
+      const response = await mixesRoute(request, env, url, email);
+      if (response) return response;
     }
 
     if (path.startsWith('/admin/api/story-sections')) {
@@ -1070,7 +1240,7 @@ ${emailButton('Confirm subscription', link)}
         if (!EMAIL_PATTERN.test(to) || to.length > 254) return json({error:'Enter the email address to send the test to.'}, 400);
         const story = rowToStory(row);
         if (!story.title || !story.blocks.length) return json({error:'Add a title and some text first.'}, 400);
-        const preview = {...story, slug:story.slug || slugify(story.title)};
+        const preview = {...story, slug:story.slug || slugify(story.title), mixes:await mixInfo(env, story.blocks)};
         try {
           await brevo(env, '/smtp/email', {sender:sender(env), replyTo:replyTo(env), to:[{email:to}], subject:`[Test] ${story.title}`,
             htmlContent:storyEmail(env, preview, {unsubscribe:`${site(env)}/stories`, test:true}), tags:['stories-test']});

@@ -11,7 +11,7 @@ const authorField = $('author');
 const slugField = $('slug');
 const statusEl = $('saveStatus');
 const state = {
-  stories:[], sections:[], tab:'draft', email:'', site:'https://zahabu.co.ke', newsletter:{ready:false}, subscribers:{confirmed:0, pending:0, unsubscribed:0},
+  stories:[], sections:[], mixLibrary:null, mixStorage:null, tab:'draft', email:'', site:'https://zahabu.co.ke', newsletter:{ready:false}, subscribers:{confirmed:0, pending:0, unsubscribed:0},
   id:null, story:null, baseUpdatedAt:null, coverId:null, coverAlt:'', version:0, savedVersion:0, saving:null, autosave:null, range:null, open:false, ignoreHash:false,
 };
 const dateTime = new Intl.DateTimeFormat('en-GB', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', timeZone:'Africa/Nairobi'});
@@ -155,6 +155,12 @@ function domToBlocks(root) {
       if (child.classList.contains('story-split')) {
         flush();
         if (child.dataset.id) blocks.push({t:'split', id:child.dataset.id, alt:child.querySelector('[name=alt]').value, text:child.querySelector('textarea').value, side:child.dataset.side});
+        continue;
+      }
+      if (child.classList.contains('story-mix')) {
+        flush();
+        const value = name => child.querySelector(`[name=${name}]`)?.value || '';
+        if (child.dataset.id) blocks.push({t:'mix', id:child.dataset.id, title:value('title'), artist:value('artist'), recorded:value('recorded'), artworkId:child.dataset.artworkId || ''});
         continue;
       }
       if (child.classList.contains('story-event')) {
@@ -406,7 +412,219 @@ function eventFigure(block = {}) {
   return figure;
 }
 
-const BLOCK_FIGURES = {img:imageFigure, embed:block => embedFigure(block.url), callout:calloutFigure, gallery:galleryFigure, split:splitFigure, event:eventFigure};
+// ---------- Mixes ----------
+
+const MIX_KBPS = 128;
+let activeUploads = 0;
+const fmtBytes = n => n >= 1073741824 ? `${(n / 1073741824).toFixed(2)} GB` : `${Math.max(0.1, n / 1048576).toFixed(n < 10485760 ? 1 : 0)} MB`;
+const fmtClock = seconds => {
+  const s = Math.max(0, Math.round(seconds || 0)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${r}` : `${m}:${r}`;
+};
+const isMp3 = file => /\.mp3$/i.test(file.name) || file.type === 'audio/mpeg';
+
+function audioDuration(blob) {
+  return new Promise(resolve => {
+    const audio = new Audio(), url = URL.createObjectURL(blob);
+    const done = value => { URL.revokeObjectURL(url); resolve(value); };
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => done(Number.isFinite(audio.duration) ? audio.duration : 0);
+    audio.onerror = () => done(0);
+    audio.src = url;
+  });
+}
+
+// WAV/AIFF/FLAC (and MP3s above ~170 kbps) are compressed to 128 kbps MP3 in a Web Worker (/admin/mix-encoder.js).
+function compressMix(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker('/admin/mix-encoder.js');
+    worker.onmessage = ({data}) => {
+      if (data.type === 'progress') return onProgress(data.progress);
+      worker.terminate();
+      if (data.type === 'done') resolve(data); else reject(new Error(data.message));
+    };
+    worker.onerror = event => { worker.terminate(); reject(new Error(`The compressor stopped${event.message ? `: ${event.message}` : ''}. Try a laptop, or export the mix as MP3 (128–160 kbps).`)); };
+    worker.postMessage({file, kbps:MIX_KBPS});
+  });
+}
+
+// Compress if needed, then upload in pieces (each retried up to 5 times), then finish. onStatus(label, fraction).
+async function uploadMix(file, meta, onStatus) {
+  activeUploads++;
+  try {
+    let blob = null, durationSeconds = 0, bitrateKbps = MIX_KBPS;
+    if (isMp3(file)) {
+      durationSeconds = await audioDuration(file);
+      const kbps = durationSeconds ? file.size * 8 / durationSeconds / 1000 : Infinity;
+      if (kbps <= 170) { blob = file; bitrateKbps = Math.round(kbps); }
+    }
+    if (!blob) {
+      onStatus('Compressing to MP3', 0);
+      const out = await compressMix(file, progress => onStatus('Compressing to MP3', progress));
+      blob = out.blob;
+      durationSeconds = out.durationSeconds;
+    }
+    const created = await api('/admin/api/mixes', {method:'POST', json:{...meta, size:blob.size, durationSeconds, bitrateKbps, originalName:file.name}});
+    const parts = [];
+    for (let n = 1; n <= created.parts; n++) {
+      const piece = blob.slice((n - 1) * created.partBytes, n * created.partBytes);
+      for (let tries = 1; ; tries++) {
+        try {
+          const response = await fetch(`/admin/api/mixes/${created.id}/parts/${n}`, {method:'PUT', body:piece, credentials:'same-origin'});
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body.error || `upload failed (${response.status})`);
+          parts.push(body);
+          break;
+        } catch (error) {
+          if (tries >= 5) throw new Error(`The upload stopped at ${Math.round((n - 1) / created.parts * 100)}% (${error.message}). Check your connection and try again.`);
+          onStatus(`Connection dropped, trying again (${tries} of 4)`, (n - 1) / created.parts);
+          await new Promise(resolve => setTimeout(resolve, 2000 * tries));
+        }
+      }
+      onStatus(`Uploading ${fmtBytes(Math.min(n * created.partBytes, blob.size))} of ${fmtBytes(blob.size)}`, n / created.parts);
+    }
+    const done = await api(`/admin/api/mixes/${created.id}/complete`, {method:'POST', json:{parts}});
+    state.mixLibrary = null;
+    return done.mix;
+  } finally {
+    activeUploads--;
+  }
+}
+
+async function loadMixLibrary() {
+  const data = await api('/admin/api/mixes');
+  state.mixLibrary = data.mixes;
+  state.mixStorage = {used:data.usedBytes, free:data.freeBytes, max:data.maxBytes};
+  return data.mixes;
+}
+
+function mixFigure(block = {}) {
+  const figure = blockFigure('story-mix', 'Mix');
+  figure.dataset.id = block.id || '';
+  figure.dataset.artworkId = block.artworkId || '';
+
+  // 1. Choose a file (or a mix that's already uploaded)
+  const pick = el('div', 'mix-pick');
+  const drop = el('button', 'mix-drop');
+  drop.type = 'button';
+  drop.innerHTML = '<b>Choose a mix file</b>WAV, AIFF, FLAC or MP3. WAVs are compressed on this computer first: a laptop is best.';
+  const picker = el('input');
+  picker.type = 'file';
+  picker.accept = 'audio/*,.wav,.aif,.aiff,.flac,.mp3';
+  picker.hidden = true;
+  const library = el('select');
+  library.setAttribute('aria-label', 'Or pick an uploaded mix');
+  library.append(new Option('…or pick a mix that\'s already uploaded', ''));
+  pick.append(drop, picker, library);
+
+  // 2. Progress
+  const progressBox = el('div', 'mix-progress');
+  const bar = el('progress');
+  bar.max = 1;
+  const status = el('span', 'mix-status');
+  progressBox.append(bar, status);
+  progressBox.hidden = true;
+
+  // 3. Ready: preview, details, artwork
+  const ready = el('div', 'mix-ready');
+  const artBox = el('div', 'mix-artwork');
+  const art = el('div', 'ph', 'No artwork');
+  const artButton = el('button', 'btn', 'Artwork');
+  artButton.type = 'button';
+  const artPicker = el('input');
+  artPicker.type = 'file';
+  artPicker.accept = 'image/*';
+  artPicker.hidden = true;
+  artBox.append(art, artButton, artPicker);
+  const fields = el('div', 'mix-fields');
+  const audio = el('audio');
+  audio.controls = true;
+  audio.preload = 'none';
+  const title = figureInput('title', 'Mix title, e.g. Sundowner session', block.title);
+  const artist = figureInput('artist', 'DJ / artist', block.artist);
+  const recorded = figureInput('recorded', 'Recorded, e.g. Live at Textures, 4 December', block.recorded);
+  const fileLine = el('span', 'mix-file');
+  fields.append(audio, title, artist, recorded, fileLine);
+  ready.append(artBox, fields);
+
+  const showArt = () => {
+    const id = figure.dataset.artworkId;
+    const node = id ? Object.assign(el('img'), {src:mediaUrl(id, 800), alt:''}) : el('div', 'ph', 'No artwork');
+    artBox.firstChild.replaceWith(node);
+    artButton.textContent = id ? 'Change artwork' : 'Add artwork';
+  };
+  const show = mode => { pick.hidden = mode !== 'pick'; progressBox.hidden = mode !== 'progress'; ready.hidden = mode !== 'ready'; };
+  const showReady = mix => {
+    figure.dataset.id = mix.id;
+    audio.src = `/stories/mixes/${mix.id}.mp3`;
+    fileLine.textContent = [mix.durationSeconds ? fmtClock(mix.durationSeconds) : '', mix.sizeBytes ? fmtBytes(mix.sizeBytes) : '', mix.originalName].filter(Boolean).join(' · ');
+    showArt();
+    show('ready');
+  };
+
+  // Keep the library's copy of the details in step (shown in the Mixes tab and when reusing a mix).
+  let syncTimer = null;
+  const syncDetails = () => {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => {
+      if (!figure.dataset.id) return;
+      api(`/admin/api/mixes/${figure.dataset.id}`, {method:'PUT', json:{title:title.value, artist:artist.value, recorded:recorded.value, artworkId:figure.dataset.artworkId || null}}).catch(() => {});
+      state.mixLibrary = null;
+    }, 1200);
+  };
+  for (const input of [title, artist, recorded]) input.addEventListener('input', syncDetails);
+
+  drop.addEventListener('click', () => picker.click());
+  library.addEventListener('focus', async () => {
+    if (library.options.length > 1) return;
+    try {
+      for (const mix of state.mixLibrary || await loadMixLibrary()) library.append(new Option([mix.title || mix.originalName || 'Untitled mix', mix.artist, fmtClock(mix.durationSeconds)].filter(Boolean).join(' · '), mix.id));
+    } catch (error) { setStatus(error.message, 'error'); }
+  });
+  library.addEventListener('change', () => {
+    const mix = (state.mixLibrary || []).find(item => item.id === library.value);
+    if (!mix) return;
+    title.value = mix.title; artist.value = mix.artist; recorded.value = mix.recorded;
+    figure.dataset.artworkId = mix.artworkId || '';
+    showReady(mix);
+    changed();
+  });
+  picker.addEventListener('change', async () => {
+    const file = picker.files[0];
+    picker.value = '';
+    if (!file) return;
+    if (!title.value) title.value = file.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ');
+    show('progress');
+    status.classList.remove('error');
+    try {
+      const mix = await uploadMix(file, {title:title.value, artist:artist.value, recorded:recorded.value, artworkId:figure.dataset.artworkId || null}, (label, fraction) => {
+        bar.value = fraction;
+        status.textContent = `${label}… ${Math.round(fraction * 100)}%`;
+      });
+      showReady(mix);
+      changed();
+      setStatus('Mix uploaded. It plays in the story once you save or publish.');
+    } catch (error) {
+      show('pick');
+      setStatus(error.message, 'error');
+    }
+  });
+  artButton.addEventListener('click', () => artPicker.click());
+  artPicker.addEventListener('change', async () => {
+    const file = artPicker.files[0];
+    artPicker.value = '';
+    if (!file) return;
+    artButton.textContent = 'Uploading…';
+    try { figure.dataset.artworkId = (await uploadPhoto(file)).id; showArt(); changed(); syncDetails(); }
+    catch (error) { setStatus(error.message, 'error'); showArt(); }
+  });
+
+  figure.append(pick, progressBox, ready);
+  if (block.id) showReady({id:block.id, durationSeconds:block.durationSeconds}); else show('pick');
+  return figure;
+}
+
+const BLOCK_FIGURES = {img:imageFigure, embed:block => embedFigure(block.url), callout:calloutFigure, gallery:galleryFigure, split:splitFigure, event:eventFigure, mix:mixFigure};
 function blocksToNodes(blocks) {
   return blocks.map(block => BLOCK_FIGURES[block.t] ? BLOCK_FIGURES[block.t](block) : htmlNode(blockHtml(block))).filter(Boolean);
 }
@@ -815,9 +1033,12 @@ function renderList() {
 
   const subscribersTab = state.tab === 'subscribers';
   const sectionsTab = state.tab === 'sections';
+  const mixesTab = state.tab === 'mixes';
   $('subscribersView').hidden = !subscribersTab;
   $('sectionsView').hidden = !sectionsTab;
-  $('rows').hidden = subscribersTab || sectionsTab;
+  $('mixesView').hidden = !mixesTab;
+  $('rows').hidden = subscribersTab || sectionsTab || mixesTab;
+  if (mixesTab) { $('listEmpty').hidden = true; renderMixes(); return; }
   if (subscribersTab) { $('listEmpty').hidden = true; loadSubscribers(); return; }
   if (sectionsTab) { $('listEmpty').hidden = true; renderSections(); return; }
 
@@ -845,6 +1066,37 @@ function renderList() {
   const empty = $('listEmpty');
   empty.hidden = rows.length > 0;
   empty.textContent = state.tab === 'draft' ? 'No drafts. Press "New story" to start one.' : 'Nothing published yet.';
+}
+
+// ---------- Mixes tab ----------
+
+async function renderMixes() {
+  let mixes;
+  try { mixes = await loadMixLibrary(); }
+  catch (error) { $('listError').textContent = error.message; $('listError').hidden = false; return; }
+  const {used, free} = state.mixStorage;
+  $('mixMeterFill').style.width = `${Math.min(100, used / free * 100).toFixed(1)}%`;
+  $('mixMeterText').textContent = `${fmtBytes(used)} of ${fmtBytes(free)} free storage used (${mixes.length} ${mixes.length === 1 ? 'mix' : 'mixes'}). Beyond that, Cloudflare charges about $0.015 per GB a month.`;
+  const rows = mixes.map(mix => {
+    const row = el('div', 'mix-row');
+    row.append(mix.artworkId ? Object.assign(el('img'), {src:mediaUrl(mix.artworkId, 800), alt:''}) : el('div', 'ph'));
+    const text = el('div');
+    text.append(el('div', 'row-title', mix.title || mix.originalName || 'Untitled mix'));
+    text.append(el('div', 'row-sub', [mix.artist, fmtClock(mix.durationSeconds), fmtBytes(mix.sizeBytes || 0), mix.usedIn ? `in ${mix.usedIn} ${mix.usedIn === 1 ? 'story' : 'stories'}` : 'not in any story', `uploaded ${dateOnly.format(new Date(mix.createdAt))}`].filter(Boolean).join(' · ')));
+    const remove = el('button', 'btn danger', 'Delete');
+    remove.type = 'button';
+    remove.disabled = mix.usedIn > 0;
+    remove.title = mix.usedIn ? 'Remove it from its stories first' : 'Delete this mix';
+    remove.addEventListener('click', async () => {
+      if (!(await confirmBox('Delete this mix?', `"${mix.title || mix.originalName}" will be removed from storage for good.`, 'Delete'))) return;
+      try { await api(`/admin/api/mixes/${mix.id}`, {method:'DELETE'}); renderMixes(); }
+      catch (error) { $('listError').textContent = error.message; $('listError').hidden = false; }
+    });
+    row.append(text, remove);
+    return row;
+  });
+  $('mixRows').replaceChildren(...rows);
+  if (!rows.length) $('mixRows').append(el('p', 'empty', 'No mixes yet. Add one inside a story with + Insert… → Mix (audio).'));
 }
 
 // ---------- Sections tab ----------
@@ -957,7 +1209,7 @@ $('downloadCsv').addEventListener('click', () => {
 for (const tab of document.querySelectorAll('.tab')) {
   tab.addEventListener('click', () => {
     state.tab = tab.dataset.tab;
-    history.replaceState(null, '', state.tab === 'subscribers' || state.tab === 'sections' ? `#/${state.tab}` : '#/');
+    history.replaceState(null, '', ['subscribers', 'sections', 'mixes'].includes(state.tab) ? `#/${state.tab}` : '#/');
     renderList();
   });
 }
@@ -972,13 +1224,25 @@ async function route() {
   if (match) return openEditor(match[1]);
   if (hash === '#/subscribers') state.tab = 'subscribers';
   else if (hash === '#/sections') state.tab = 'sections';
-  else if (state.tab === 'subscribers' || state.tab === 'sections') state.tab = 'draft';
+  else if (hash === '#/mixes') state.tab = 'mixes';
+  else if (['subscribers', 'sections', 'mixes'].includes(state.tab)) state.tab = 'draft';
   await loadList();
   showList();
 }
 
 window.addEventListener('hashchange', async () => {
   if (state.ignoreHash) { state.ignoreHash = false; return; }
+  if (activeUploads && state.open && !state.leavingUpload) {
+    const target = location.hash;
+    state.ignoreHash = true;
+    location.hash = currentHash;
+    if (!(await confirmBox('A mix is still uploading', 'Leave this story and the mix won\'t be added to it (it will still finish uploading to the Mixes library if you stay on this page).', 'Leave'))) return;
+    state.ignoreHash = false;
+    state.leavingUpload = true;
+    location.hash = target;
+    return;
+  }
+  state.leavingUpload = false;
   if (state.open && isDirty()) {
     const target = location.hash;
     if (isLive()) {
@@ -1009,7 +1273,7 @@ route();
 });
 
 window.addEventListener('beforeunload', event => {
-  if (state.open && isDirty()) event.preventDefault();
+  if ((state.open && isDirty()) || activeUploads) event.preventDefault();
 });
 
 // ---------- Editor events ----------
@@ -1028,10 +1292,11 @@ $('insertBlock').addEventListener('change', event => {
   const kind = event.target.value;
   event.target.value = '';
   const anchor = currentBlock();
-  const figure = {gallery:galleryFigure, split:splitFigure, callout:calloutFigure, event:eventFigure}[kind]?.();
+  const figure = {gallery:galleryFigure, split:splitFigure, callout:calloutFigure, event:eventFigure, mix:mixFigure}[kind]?.();
   if (!figure) return;
   insertBlock(figure, anchor);
   if (kind === 'gallery') figure.querySelector('.gal-add').click();
+  else if (kind === 'mix') figure.querySelector('.mix-drop').click();
   else if (kind === 'split') figure.querySelector('.split-photo .btn').click();
   else figure.querySelector('textarea, input')?.focus();
 });

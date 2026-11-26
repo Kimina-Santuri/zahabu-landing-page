@@ -11,6 +11,11 @@ await cp('drizzle','dist/.openai/drizzle',{recursive:true});
 const photoAssetSources = {'/admin/index.html':'admin.html','/admin/admin.js':'admin.js','/admin/messages.html':'messages.html','/admin/messages.js':'messages.js','/admin/stories.html':'stories.html','/admin/stories.js':'stories.js','/admin/logo.png':'images/logo-wordmark.png','/admin/Futura-Regular.ttf':'fonts/Futura-Regular.ttf','/admin/favicon.ico':'images/favicon.ico'};
 const photoAssets = {};
 for (const [route, path] of Object.entries(photoAssetSources)) photoAssets[route] = {data:(await readFile(path)).toString('base64'),type:types[path.split('.').pop()]};
+// The Stories editor's mix compressor (a Web Worker): mix-encoder-src.js + lamejs + FLAC/MP3 decoders, bundled unminified
+// (lamejs is LGPL-3.0; its source and exact version are in package.json).
+const { build: esbuild } = await import('esbuild');
+const encoder = await esbuild({entryPoints:['mix-encoder-src.js'], bundle:true, format:'iife', platform:'browser', target:'es2020', write:false, logLevel:'warning'});
+photoAssets['/admin/mix-encoder.js'] = {data:Buffer.from(encoder.outputFiles[0].contents).toString('base64'), type:types.js};
 await mkdir('dist/photos',{recursive:true});
 await writeFile('dist/photos/index.js',`const PHOTO_ASSETS = ${JSON.stringify(photoAssets)};\n${await readFile('photos-worker.mjs','utf8')}`);
 // photos-worker.mjs imports ./stories.mjs, so it sits next to the built file.

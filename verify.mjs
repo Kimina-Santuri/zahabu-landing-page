@@ -3,7 +3,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFile, readdir } from 'node:fs/promises';
 import worker from './dist/server/index.js';
 import photosWorker, { sanitizeJpeg, storiesForTests as storiesForTestsModule } from './dist/photos/index.js';
-import { localD1 } from './local-bindings.mjs';
+import { localD1, localR2 } from './local-bindings.mjs';
+import { rm } from 'node:fs/promises';
 const db = new DatabaseSync(':memory:');
 db.exec(await readFile('drizzle/0000_lying_thanos.sql','utf8'));
 db.exec(await readFile('migrations/0002_entry_details.sql','utf8'));
@@ -382,9 +383,11 @@ console.log('Verified equipment inventory: Access fail-closed, editor vs viewer 
 
 db.exec(await readFile('migrations/0008_stories.sql','utf8'));
 db.exec(await readFile('migrations/0009_story_sections.sql','utf8'));
+db.exec(await readFile('migrations/0010_mixes.sql','utf8'));
+const mixDir = `/private/tmp/zahabu-verify-mixes-${process.pid}`;
 const brevoCalls = [];
 let brevoFail = null;
-const storiesEnv = {...photoEnv, LOCAL_DEV:true, SITE_ORIGIN:'https://zahabu.co.ke', ALLOWED_ORIGINS:'https://zahabu.co.ke', TURNSTILE_SITE_KEY:'site-key',
+const storiesEnv = {...photoEnv, MIXES:localR2(mixDir), LOCAL_DEV:true, SITE_ORIGIN:'https://zahabu.co.ke', ALLOWED_ORIGINS:'https://zahabu.co.ke', TURNSTILE_SITE_KEY:'site-key',
   NEWSLETTER_FROM:'stories@zahabu.co.ke', BREVO_LIST_ID:'7',
   BREVO_FAKE:async (path, body, method) => { if (path.startsWith('/contacts/')) { const email = decodeURIComponent(path.slice(10)); if (email === 'gone@example.com') throw Object.assign(new Error('Contact not found'), {code:'document_not_found'}); return email === 'fan@example.com' ? {emailBlacklisted:true, listIds:[7]} : {emailBlacklisted:false, listIds:[7], listUnsubscribed:[]}; } if (brevoFail && path.includes(brevoFail)) throw Object.assign(new Error('Sender not valid'), {code:'invalid_parameter'}); brevoCalls.push({path, body}); return path === '/emailCampaigns' ? {id:42} : {}; }};
 const publicEnv = {...storiesEnv, LOCAL_DEV:false};
@@ -661,6 +664,60 @@ assert.ok(richEmail.includes("font-family:'Zahabu Futura'") || richEmail.include
 assert.ok(!/font-family:Futura/.test(richEmail), 'never the built-in Futura');
 const richFeed = await (await site('/stories/feed.xml')).text();
 assert.ok(richFeed.includes('<category>Features</category>'));
+
+// Mixes: upload in 8 MB parts, stream with Range, Mix block on web/email/feed, library, delete rules
+const mixBytes = new Uint8Array(20 * 1024 * 1024).map((_, i) => i % 251);
+assert.equal((await staff('/admin/api/mixes', {method:'POST', json:{size:mixBytes.length}, origin:'https://evil.example'})).status, 403);
+assert.equal((await staff('/admin/api/mixes', {method:'POST', json:{size:400 * 1024 * 1024}})).status, 413, 'too big');
+const createdMix = await (await staff('/admin/api/mixes', {method:'POST', json:{size:mixBytes.length, title:'Sundowner <session>', artist:'DJ Test', recorded:'Live, 4 Dec', durationSeconds:3725, bitrateKbps:128, originalName:'set.wav', artworkId:image.id}})).json();
+assert.equal(createdMix.parts, 3);
+assert.equal((await site(`/stories/mixes/${createdMix.id}.mp3`)).status, 404, 'not playable until the upload finishes');
+assert.equal((await staff(`/admin/api/mixes/${createdMix.id}/parts/1`, {method:'PUT', body:new Uint8Array(createdMix.partBytes + 1)})).status, 400, 'oversized part refused');
+const mixParts = [];
+for (let n = 1; n <= createdMix.parts; n++) {
+  const piece = mixBytes.subarray((n - 1) * createdMix.partBytes, n * createdMix.partBytes);
+  const res = await photosWorker.fetch(new Request(`${photosOrigin}/admin/api/mixes/${createdMix.id}/parts/${n}`, {method:'PUT', headers:{origin:photosOrigin, 'content-length':String(piece.length)}, body:piece}), storiesEnv);
+  assert.equal(res.status, 200);
+  mixParts.push(await res.json());
+}
+assert.equal((await staff(`/admin/api/mixes/${createdMix.id}/complete`, {method:'POST', json:{parts:mixParts.slice(0, 2)}})).status, 400, 'missing parts');
+const readyMix = (await (await staff(`/admin/api/mixes/${createdMix.id}/complete`, {method:'POST', json:{parts:mixParts}})).json()).mix;
+assert.equal(readyMix.status, 'ready');
+assert.equal(readyMix.sizeBytes, mixBytes.length);
+const fullStream = await site(`/stories/mixes/${createdMix.id}.mp3`);
+assert.equal(fullStream.status, 200);
+assert.equal(fullStream.headers.get('content-type'), 'audio/mpeg');
+assert.equal(fullStream.headers.get('accept-ranges'), 'bytes');
+assert.deepEqual(new Uint8Array(await fullStream.arrayBuffer()).subarray(8388600, 8388620), mixBytes.subarray(8388600, 8388620), 'parts joined in order');
+const ranged = await site(`/stories/mixes/${createdMix.id}.mp3`, {headers:{range:'bytes=100-199'}});
+assert.equal(ranged.status, 206);
+assert.equal(ranged.headers.get('content-range'), `bytes 100-199/${mixBytes.length}`);
+assert.deepEqual(new Uint8Array(await ranged.arrayBuffer()), mixBytes.subarray(100, 200));
+const tail = await site(`/stories/mixes/${createdMix.id}.mp3`, {headers:{range:'bytes=-50'}});
+assert.equal(tail.headers.get('content-range'), `bytes ${mixBytes.length - 50}-${mixBytes.length - 1}/${mixBytes.length}`);
+assert.equal((await site(`/stories/mixes/${createdMix.id}.mp3`, {method:'HEAD'})).headers.get('content-length'), String(mixBytes.length));
+let mixLib = await (await staff('/admin/api/mixes')).json();
+assert.equal(mixLib.usedBytes, mixBytes.length);
+assert.equal(mixLib.mixes[0].usedIn, 0);
+// In a story
+const mixBlock = {t:'mix', id:createdMix.id, title:'Sundowner <session>', artist:'DJ Test', recorded:'Live, 4 Dec', artworkId:image.id};
+assert.deepEqual(storiesForTestsModule.cleanBody([mixBlock, {t:'mix', id:'nope'}]).blocks, [mixBlock], 'bad mix ids dropped');
+story = (await (await staff(`/admin/api/stories/${story.id}`, {method:'PUT', json:{...story, body:[...body, mixBlock]}})).json()).story;
+const mixPage = await (await site('/stories/sundowner-season-and-more')).text();
+assert.ok(mixPage.includes(`<audio class="mix-audio" controls preload="none" controlsList="nodownload" src="/stories/mixes/${createdMix.id}.mp3">`), 'player, nothing preloaded, no download button');
+assert.ok(mixPage.includes('Sundowner &lt;session&gt;') && mixPage.includes('DJ Test · Live, 4 Dec') && mixPage.includes('/ 1:02:05'), 'details and duration');
+assert.ok(!mixPage.includes('<session>'));
+brevoCalls.length = 0;
+await staff(`/admin/api/stories/${story.id}/test-email`, {method:'POST', json:{to:'me@zahabu.co.ke'}});
+assert.ok(brevoCalls[0].body.htmlContent.includes(`https://zahabu.co.ke/stories/sundowner-season-and-more#mix-${createdMix.id}`), 'email Listen button opens the story at the mix');
+assert.ok((await (await site('/stories/feed.xml')).text()).includes(`/stories/sundowner-season-and-more#mix-${createdMix.id}`));
+mixLib = await (await staff('/admin/api/mixes')).json();
+assert.equal(mixLib.mixes[0].usedIn, 1);
+assert.equal((await staff(`/admin/api/mixes/${createdMix.id}`, {method:'DELETE'})).status, 400, 'a mix in a story cannot be deleted');
+story = (await (await staff(`/admin/api/stories/${story.id}`, {method:'PUT', json:{...story, body}})).json()).story;
+assert.equal((await staff(`/admin/api/mixes/${createdMix.id}`, {method:'DELETE'})).status, 200);
+assert.equal((await site(`/stories/mixes/${createdMix.id}.mp3`)).status, 404, 'gone from storage');
+await rm(mixDir, {recursive:true, force:true});
 
 // Unpublish takes it off the site
 assert.equal((await staff(`/admin/api/stories/${story.id}/unpublish`, {method:'POST'})).status, 200);

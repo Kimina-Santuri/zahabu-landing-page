@@ -1,1 +1,1 @@
-{"name":"zahabu-tech-tracker","private":true,"type":"module","scripts":{"build":"node build.mjs","db:generate":"drizzle-kit generate"},"devDependencies":{"drizzle-kit":"0.31.4","drizzle-orm":"0.44.5"}}
+{"name":"zahabu-tech-tracker","private":true,"type":"module","scripts":{"build":"node build.mjs","db:generate":"drizzle-kit generate"},"devDependencies":{"@breezystack/lamejs":"1.2.7","@wasm-audio-decoders/flac":"0.2.11","drizzle-kit":"0.31.4","drizzle-orm":"0.44.5","mpg123-decoder":"1.0.3"}}

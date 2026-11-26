@@ -33,9 +33,11 @@ if (!db.prepare('SELECT name FROM _local_migrations WHERE name = ?').get('0009_s
   db.exec(await readFile('migrations/0009_story_sections.sql','utf8'));
   db.prepare('INSERT INTO _local_migrations VALUES (?)').run('0009_story_sections.sql');
 }
+// 0010: mixes (plain CREATE TABLE, safe to re-run).
+db.exec(await readFile('migrations/0010_mixes.sql','utf8'));
 const env={DB:localD1(db)};
 // Turnstile's published test secret always passes; LOCAL_DEV skips Cloudflare Access for /admin.
-const photosEnv={DB:localD1(db),PHOTOS:localR2('/private/tmp/zahabu-photos-preview'),LOCAL_DEV:true,TURNSTILE_SECRET:'1x0000000000000000000000000000000AA',ALLOWED_ORIGINS:'http://localhost:5173,http://localhost:8123',
+const photosEnv={DB:localD1(db),PHOTOS:localR2('/private/tmp/zahabu-photos-preview'),MIXES:localR2('/private/tmp/zahabu-mixes-preview'),LOCAL_DEV:true,TURNSTILE_SECRET:'1x0000000000000000000000000000000AA',ALLOWED_ORIGINS:'http://localhost:5173,http://localhost:8123',
   // Contact form emails are printed here instead of sent.
   CONTACT_FROM:'website@mail.zahabu.co.ke',CONTACT_EMAIL:{send:async message=>console.log('Contact email (not sent):',JSON.stringify(message,null,2))},
   // Stories: pages link to this server, and Brevo calls are printed (emails saved as HTML files to look at) instead of sent.

@@ -119,6 +119,13 @@ Four things that share source files but are **not** deployed the same way. Read 
 - **Preview:** `node preview.mjs` serves `/stories` and `/admin/stories` on :5173; Brevo calls are printed and each email's HTML is saved to `/private/tmp/zahabu-brevo-<time>.html`. Tests: the "Stories" block at the end of `verify.mjs`.
 - **Live since 2026-11-26** (migration 0008, photos Worker `44e9f0f8`, routes `zahabu.co.ke/stories*` and `www.`). **Email still to set up:** a Brevo account (the user creates it), Senders & Domains → authenticate `zahabu.co.ke` (adds a `brevo-code` TXT and DKIM records in Cloudflare DNS; **never touch the root MX/SPF, Zoho owns them**; DMARC is `p=quarantine`, so DKIM must pass) → add sender `stories@zahabu.co.ke` (or another address) → Contacts → Lists → new list "Zahabu Stories" (put its id in `BREVO_LIST_ID`) → SMTP & API → API key into the `BREVO_API_KEY` secret via the Cloudflare dashboard → set `BREVO_WEBHOOK_KEY` and add a marketing webhook in Brevo (events: unsubscribed, hard bounce, spam) to `https://zahabu.co.ke/stories/api/brevo-webhook/<key>` → set `NEWSLETTER_FROM`, deploy. New Brevo accounts may need Brevo to approve them before campaigns send.
 
+## Mixes
+
+- **What:** DJ mixes uploaded from the Stories editor and played inside stories (built 2026-11-26; the user's choices: a Mix block in stories, 128 kbps, stream only, DJ/artist, artwork, recorded date/night). Insert with **+ Insert… → Mix (audio)**; the editor's **Mixes** tab lists every uploaded mix with storage use (out of R2's free 10 GB) and deletes mixes no story uses.
+- **Compression in the browser:** `mix-encoder-src.js` runs in a Web Worker. WAV (PCM 8/16/24/32-bit, float, extensible) and AIFF/AIFC (twos/sowt/fl32) are parsed in-house and read 4 MB at a time; FLAC and MP3 are decoded with `@wasm-audio-decoders/flac` 0.2.11 and `mpg123-decoder` 1.0.3; encoded with `@breezystack/lamejs` 1.2.7 (LGPL-3.0, bundled unminified) to **128 kbps MP3**. Other rates are converted: 88.2/96/176.4/192 kHz → 44.1/48 kHz by averaging, anything else → 44.1 kHz by linear interpolation. An MP3 already at ≤170 kbps uploads untouched (no second generation). Speed measured in Node: 26–75× real time; in Chrome a 10-minute, 101 MB WAV became a 9.2 MB MP3 and uploaded in about 23 s. Phones may be slow: the editor recommends a laptop.
+- **Upload:** `POST /admin/api/mixes` (creates an R2 multipart upload, max 300 MB) → `PUT /admin/api/mixes/<id>/parts/<n>` (8 MB pieces, each retried up to 5 times by the editor) → `POST …/complete`. `PUT /admin/api/mixes/<id>` syncs title/artist/recorded/artwork; `DELETE` refuses while any story's body mentions the mix. Table `mixes` (`migrations/0010_mixes.sql`, applied 2026-11-26). Files: R2 bucket **`zahabu-mixes`** (binding `MIXES`, created 2026-11-26) at `mixes/<id>.mp3`.
+- **Playing:** `GET/HEAD /stories/mixes/<id>.mp3` (finished uploads only; Range requests → 206, so seeking works). The Mix block renders a player with `preload="none"` (nothing downloads until play) and `controlsList="nodownload"`; page script swaps the browser controls for a site-styled play/pause + seek bar, one mix at a time. Email and RSS show a "Listen" link to `/stories/<slug>#mix-<id>`. Stream only is a UI choice: a determined listener could still save the stream.
+
 ## Equipment inventory
 
 - **Access model:** one Cloudflare Access app covers the whole `inventory.zahabu.co.ke` host, and its policy should let in everyone who may *view*. The Worker re-verifies the JWT (it reuses `accessEmail` exported from `photos-worker.mjs`) and fails closed without `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD`. Editing is allowed only for emails in the `EDITOR_EMAILS` **secret** (comma-separated; `@domain` entries allow a whole domain). It's a secret rather than a `[vars]` entry because this repo is public. Writes also need same-origin.
@@ -150,7 +157,8 @@ Four things that share source files but are **not** deployed the same way. Read 
 - `photos-worker.mjs` — community photos Worker (public submit/list/media API + contact form `/api/contact` + Access-gated `/admin`); built into `dist/photos/index.js` with `PHOTO_ASSETS` (admin page files) prepended
 - `messages.html`, `messages.js`: staff Messages page, served at `photos.zahabu.co.ke/admin/messages`
 - `stories.mjs`: Stories server module (public pages, feed, subscribe, Brevo, editor API), imported by `photos-worker.mjs`
-- `stories.html`, `stories.js`: Stories editor, served at `photos.zahabu.co.ke/admin/stories`
+- `stories.html`, `stories.js`: Stories editor, served at `comms.zahabu.co.ke`
+- `mix-encoder-src.js`: the editor's in-browser mix compressor (Web Worker), bundled by `build.mjs` into `/admin/mix-encoder.js`; tested by `verify-mix.mjs`
 - `admin.html`, `admin.js` — staff photo review page, served at `photos.zahabu.co.ke/admin`
 - `inventory.html`, `inventory.js`: equipment inventory page (list, filters, detail, edit/log/photo forms, CSV export)
 - `inventory-worker.mjs`: equipment inventory Worker (Access-gated API + media + page); `wrangler.inventory.toml` is its config
@@ -179,7 +187,8 @@ Four things that share source files but are **not** deployed the same way. Read 
 npm install
 npm run db:generate   # regenerates drizzle/ from db/schema.ts
 npm run build         # runs build.mjs -> dist/server/index.js
-node verify.mjs        # checks tracker, photos, contact form, vendor form and inventory logic (run after npm run build)
+node verify.mjs        # checks tracker, photos, contact form, vendor form, inventory and stories logic (run after npm run build)
+node verify-mix.mjs    # checks the mix compressor (WAV/AIFF/FLAC/MP3 → 128 kbps MP3); FLAC_SAMPLE=path.flac adds a FLAC case
 node preview.mjs        # local preview server, http://localhost:5173 (site, /tracker.html, /admin photo review) + :5174 (inventory)
 ```
 
@@ -281,4 +290,11 @@ Opening any HTML file directly (`file://`) does not provide database access — 
 
 - Story cards on /stories (also "More stories" under an article) and the home page "From the garden" cards now use the story page's almost-clear frosted glass (`rgba(255,255,255,.22)`, `blur(28px)`) and are **landscape** from 600px up (photo 42% on the left, text on the right; the big first card on /stories keeps its larger 56% photo). Below 600px they stack, photo on top. Card grids: /stories `minmax(min(100%,460px),1fr)`; home page is a centred flex row of cards up to 560px wide, so an odd last card (or a lone story) sits centred. Card blurb and meta text slightly darker for contrast on the clearer glass.
 - Verified: tests pass; checked in Chrome against the preview (desktop: two per row, third centred on the home page; narrowest window 500px: stacked, no sideways scroll on either page). Deployed and pushed.
+
+## 2026-11-26 (later): mixes finished and live
+
+- Picked up from `mixes-wip` (rebased onto main; two small overlaps resolved). With the user's OK: installed the three audio libraries (exact versions, devDependencies) and created the R2 bucket `zahabu-mixes`. Built the compressor (`mix-encoder-src.js`, bundled by `build.mjs`), the editor's Mix block and Mixes tab, and tests (`verify-mix.mjs` for the compressor incl. a FLAC made with macOS `afconvert`; mix upload/stream/block/library/delete tests in `verify.mjs`). See "Mixes".
+- Verified: both test suites pass. In Chrome against the preview: a generated 10-minute WAV went through the Mix block (compressed, uploaded in two parts, saved with the story), the published story played it and seeking to 5:00 worked, and the Mixes tab showed it with storage use. Migration 0010 applied, photos Worker deployed (version `957765e6`, `MIXES` bound, `BREVO_API_KEY` still a secret), merged to main and pushed. Live: compressor and mixes API behind the Zoho sign-in; unknown mixes 404.
+- Not verified: a real upload on the live site, artwork on the player, compression on a phone, very long (2 h+) files in a browser.
+- Noticed: info@zahabu.co.ke unpublished the 2026 newsletter story at 16:01 (back to draft); left as it is.
 

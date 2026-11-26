@@ -153,6 +153,29 @@
     .event-grid label { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); display:grid; gap:4px; }
     .block-card .fig-fields { margin-top:8px; }
 
+    .story-mix .mix-pick { display:grid; gap:10px; }
+    .story-mix .mix-drop { border:1px dashed var(--line); border-radius:12px; background:var(--paper); padding:22px 16px; text-align:center; font-size:14px; color:var(--muted); cursor:pointer; }
+    .story-mix .mix-drop b { display:block; font-weight:normal; color:var(--ink); font-size:15px; margin-bottom:4px; }
+    .story-mix .mix-progress { display:grid; gap:6px; }
+    .story-mix progress { width:100%; height:10px; accent-color:var(--forest); }
+    .story-mix .mix-status { font-size:13px; color:var(--muted); }
+    .story-mix .mix-status.error { color:var(--danger); }
+    .story-mix .mix-ready { display:grid; grid-template-columns:96px 1fr; gap:12px; align-items:start; }
+    .story-mix .mix-artwork { display:grid; gap:6px; }
+    .story-mix .mix-artwork img, .story-mix .mix-artwork .ph { width:96px; height:96px; object-fit:cover; border-radius:10px !important; background:var(--paper); display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--muted); text-align:center; }
+    .story-mix .mix-artwork .btn { padding:6px 8px; font-size:10px; }
+    .story-mix .mix-fields { display:grid; gap:6px; min-width:0; }
+    .story-mix audio { width:100%; height:36px; }
+    .story-mix .mix-file { font-size:12px; color:var(--muted); }
+    .meter { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+    .meter-bar { height:10px; border-radius:999px; background:var(--soft); overflow:hidden; }
+    .meter-bar span { display:block; height:100%; background:var(--forest); width:0; }
+    .meter p { font-size:13px; color:var(--muted); margin-top:8px; }
+    .mix-row { display:grid; grid-template-columns:56px 1fr auto; gap:12px; align-items:center; padding:12px; background:var(--paper); border:1px solid var(--line); border-radius:14px; }
+    .mix-row img, .mix-row .ph { width:56px; height:56px; border-radius:8px; object-fit:cover; background:var(--soft); }
+    .mix-row .row-sub { font-size:13px; color:var(--muted); }
+    @media (max-width:560px) { .story-mix .mix-ready { grid-template-columns:1fr; } .mix-row { grid-template-columns:48px 1fr; } .mix-row .btn { grid-column:1 / -1; } }
+
     .side { display:grid; gap:16px; }
     .panel { background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px; }
     .panel h2 { font-weight:normal; font-size:13px; letter-spacing:.16em; text-transform:uppercase; margin-bottom:10px; }
@@ -220,12 +243,18 @@
         <button type="button" class="tab" data-tab="draft" aria-pressed="true">Drafts<span class="count" id="draftCount"></span></button>
         <button type="button" class="tab" data-tab="published" aria-pressed="false">Published<span class="count" id="publishedCount"></span></button>
         <button type="button" class="tab" data-tab="sections" aria-pressed="false">Sections</button>
+        <button type="button" class="tab" data-tab="mixes" aria-pressed="false">Mixes</button>
         <button type="button" class="tab" data-tab="subscribers" aria-pressed="false">Subscribers<span class="count" id="subCount"></span></button>
       </div>
     </div>
     <p class="message error" id="listError" hidden></p>
     <div class="rows" id="rows"></div>
     <p class="empty" id="listEmpty" hidden></p>
+    <section id="mixesView" hidden>
+      <div class="meter" id="mixMeter"><div class="meter-bar"><span id="mixMeterFill"></span></div><p id="mixMeterText"></p></div>
+      <p class="intro" style="margin-bottom:14px">Mixes are added inside a story with <b>+ Insert… → Mix (audio)</b>. WAV, AIFF and FLAC files are compressed to MP3 (128 kbps) on your computer before uploading, so a 600 MB WAV uploads as about 58 MB. A laptop is best for that; it takes a minute or two per hour of music. Listeners can stream, not download.</p>
+      <div class="rows" id="mixRows"></div>
+    </section>
     <section id="sectionsView" hidden>
       <p class="intro" style="margin-bottom:14px">Each story can sit in one section. Readers see section tabs on zahabu.co.ke/stories (only for sections that have published stories). Renaming keeps the section's web address, so links don't break.</p>
       <div class="rows" id="sectionRows"></div>
@@ -282,6 +311,7 @@
             <option value="split">Photo + text</option>
             <option value="callout">Highlighted note</option>
             <option value="event">Event card</option>
+            <option value="mix">Mix (audio)</option>
           </select>
         </div>
         <div class="prose" id="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Story text" data-placeholder="Start writing…" spellcheck="true"></div>
