@@ -384,8 +384,8 @@ db.exec(await readFile('migrations/0008_stories.sql','utf8'));
 const brevoCalls = [];
 let brevoFail = null;
 const storiesEnv = {...photoEnv, LOCAL_DEV:true, SITE_ORIGIN:'https://zahabu.co.ke', ALLOWED_ORIGINS:'https://zahabu.co.ke', TURNSTILE_SITE_KEY:'site-key',
-  NEWSLETTER_FROM:'stories@zahabu.co.ke', BREVO_LIST_ID:'7', BREVO_WEBHOOK_KEY:'hook-key-1234567890',
-  BREVO_FAKE:async (path, body) => { if (brevoFail && path.includes(brevoFail)) throw Object.assign(new Error('Sender not valid'), {code:'invalid_parameter'}); brevoCalls.push({path, body}); return path === '/emailCampaigns' ? {id:42} : {}; }};
+  NEWSLETTER_FROM:'stories@zahabu.co.ke', BREVO_LIST_ID:'7',
+  BREVO_FAKE:async (path, body, method) => { if (path.startsWith('/contacts/')) { const email = decodeURIComponent(path.slice(10)); if (email === 'gone@example.com') throw Object.assign(new Error('Contact not found'), {code:'document_not_found'}); return email === 'fan@example.com' ? {emailBlacklisted:true, listIds:[7]} : {emailBlacklisted:false, listIds:[7], listUnsubscribed:[]}; } if (brevoFail && path.includes(brevoFail)) throw Object.assign(new Error('Sender not valid'), {code:'invalid_parameter'}); brevoCalls.push({path, body}); return path === '/emailCampaigns' ? {id:42} : {}; }};
 const publicEnv = {...storiesEnv, LOCAL_DEV:false};
 globalThis.fetch = async (url, init) => String(url).includes('turnstile/v0/siteverify') ? Response.json({success:init.body.get('response') === 'good-token'}) : realFetch(url, init);
 const staff = (path, {method='GET', json, body, origin=photosOrigin}={}) => photosWorker.fetch(new Request(photosOrigin+path, {method,
@@ -555,10 +555,16 @@ const listing = await (await staff('/admin/api/stories')).json();
 assert.equal(listing.subscribers.confirmed, 1);
 assert.ok(listing.stories.find(s => s.id === story.id).newsletterSentAt);
 
-// Brevo webhook: wrong key ignored, unsubscribes mirrored
-assert.equal((await site('/stories/api/brevo-webhook/wrong-key-1234567890', {method:'POST', body:JSON.stringify({event:'unsubscribed', email:'fan@example.com'})})).status, 404);
-assert.equal((await site('/stories/api/brevo-webhook/hook-key-1234567890', {method:'POST', body:JSON.stringify({event:'unsubscribed', email:'Fan@example.com'})})).status, 200);
+// Brevo webhook: public address, so every event is checked back with Brevo before anyone is marked unsubscribed
+const hook = events => site('/stories/api/brevo-webhook', {method:'POST', body:JSON.stringify(events)});
+db.prepare("UPDATE subscribers SET status = 'confirmed' WHERE email IN ('person0@example.com', 'person1@example.com')").run();
+db.prepare("INSERT INTO subscribers (id, email, status, token, created_at) VALUES ('g1', 'gone@example.com', 'confirmed', 't', '2026-01-01')").run();
+assert.equal((await (await hook({event:'unsubscribed', email:'person0@example.com'})).json()).marked, 0, 'a fake event for someone still on the list changes nothing');
+assert.equal(db.prepare('SELECT status FROM subscribers WHERE email = ?').get('person0@example.com').status, 'confirmed');
+assert.equal((await (await hook([{event:'unsubscribed', email:'Fan@example.com'}, {event:'hard_bounce', email:'gone@example.com'}, {event:'opened', email:'person1@example.com'}])).json()).marked, 2);
 assert.equal(db.prepare('SELECT status FROM subscribers WHERE email = ?').get('fan@example.com').status, 'unsubscribed');
+assert.equal(db.prepare('SELECT status FROM subscribers WHERE email = ?').get('gone@example.com').status, 'unsubscribed');
+assert.equal(db.prepare('SELECT status FROM subscribers WHERE email = ?').get('person1@example.com').status, 'confirmed', 'other events ignored');
 
 // Unpublish takes it off the site
 assert.equal((await staff(`/admin/api/stories/${story.id}/unpublish`, {method:'POST'})).status, 200);

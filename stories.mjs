@@ -8,7 +8,7 @@
 //   /stories/api/subscribe   GET: is signing up available?  POST: email + Turnstile, sends a confirmation email
 //   /stories/confirm?t=…     page with a Confirm button (a button, so email link scanners don't confirm people)
 //   /stories/api/confirm     POST from that page: subscriber confirmed and added to the Brevo list
-//   /stories/api/brevo-webhook/<key>   Brevo tells us about unsubscribes, hard bounces and spam complaints
+//   /stories/api/brevo-webhook   Brevo tells us about unsubscribes, bounces and spam complaints (each checked back with Brevo)
 // Staff (photos.zahabu.co.ke/admin/…, behind Cloudflare Access; photos-worker.mjs checks the sign-in first):
 //   /admin/stories (editor page), /admin/stories/<id>/preview, /admin/api/stories…, /admin/api/story-images,
 //   /admin/api/subscribers
@@ -613,20 +613,31 @@ ${emailButton('Confirm subscription', link)}
     return noticePage(env, url, 'You\'re subscribed', 'Thank you. New Zahabu stories will come straight to your inbox.');
   }
 
-  // Brevo → us: unsubscribes, hard bounces and spam complaints mark the subscriber as unsubscribed here too.
-  async function brevoWebhook(request, env, key) {
-    if (!env.BREVO_WEBHOOK_KEY || key.length !== env.BREVO_WEBHOOK_KEY.length) return new Response('Not found', {status:404});
-    let diff = 0;
-    for (let i = 0; i < key.length; i++) diff |= key.charCodeAt(i) ^ env.BREVO_WEBHOOK_KEY.charCodeAt(i);
-    if (diff) return new Response('Not found', {status:404});
+  // Brevo → us: unsubscribes, hard bounces and spam complaints. The webhook address is public, so its body is only a hint:
+  // each email is looked up in Brevo (with our API key) and marked unsubscribed here only if Brevo agrees it has left the list.
+  async function brevoWebhook(request, env) {
+    if (!newsletterReady(env)) return json({ok:true});
     let events;
     try { events = await request.json(); } catch { return json({error:'Bad JSON.'}, 400); }
-    for (const event of [events].flat().slice(0, 500)) {
-      const email = String(event?.email || '').toLowerCase();
-      if (!email || !['unsubscribed', 'hard_bounce', 'spam', 'contact_deleted', 'list_deletion'].includes(event.event)) continue;
-      await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ? WHERE email = ? AND status != 'unsubscribed'").bind(now(), email).run();
+    const emails = [...new Set([events].flat().filter(event => ['unsubscribed', 'hard_bounce', 'spam', 'contact_deleted', 'list_deletion', 'blocked'].includes(event?.event))
+      .map(event => String(event.email || '').trim().toLowerCase()).filter(email => EMAIL_PATTERN.test(email)))].slice(0, 50);
+    const listId = Number(env.BREVO_LIST_ID);
+    let marked = 0;
+    for (const email of emails) {
+      const row = await env.DB.prepare("SELECT id FROM subscribers WHERE email = ? AND status != 'unsubscribed'").bind(email).first();
+      if (!row) continue;
+      let contact = null;
+      try {
+        contact = await brevo(env, `/contacts/${encodeURIComponent(email)}`, null, 'GET');
+      } catch (error) {
+        if (!['404', 'document_not_found'].includes(String(error.code))) { console.warn('Brevo contact lookup failed', JSON.stringify({code:error.code})); continue; }
+      }
+      const left = !contact || contact.emailBlacklisted || (contact.listUnsubscribed || []).includes(listId) || !(contact.listIds || []).includes(listId);
+      if (!left) continue;
+      await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ? WHERE id = ?").bind(now(), row.id).run();
+      marked++;
     }
-    return json({ok:true});
+    return json({ok:true, marked});
   }
 
   // ---------- Public router ----------
@@ -644,8 +655,7 @@ ${emailButton('Confirm subscription', link)}
       return json({error:'Method not allowed.'}, 405);
     }
     if (path === '/stories/api/confirm' && request.method === 'POST') return confirm(request, env, url);
-    const hook = path.match(/^\/stories\/api\/brevo-webhook\/([A-Za-z0-9_-]{16,128})$/);
-    if (hook && request.method === 'POST') return brevoWebhook(request, env, hook[1]);
+    if (path === '/stories/api/brevo-webhook' && request.method === 'POST') return brevoWebhook(request, env);
 
     if (!['GET', 'HEAD'].includes(request.method)) return new Response('Method not allowed', {status:405});
     if (path === '/stories' || path === '/stories/') return indexPage(env, url);

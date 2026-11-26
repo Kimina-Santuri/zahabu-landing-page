@@ -40,11 +40,10 @@ SITE_ORIGIN = "https://zahabu.co.ke"
 TURNSTILE_SITE_KEY = "0x4AAAAAAFHmoNtXVh4PIyD2"
 NEWSLETTER_FROM_NAME = "Zahabu"
 NEWSLETTER_REPLY_TO = "info@zahabu.co.ke"
-# NEWSLETTER_FROM = "stories@zahabu.co.ke"   # a sender verified in Brevo (domain zahabu.co.ke authenticated there)
-# BREVO_LIST_ID = ""                          # id of the "Zahabu Stories" list in Brevo → Contacts → Lists
+NEWSLETTER_FROM = "stories@zahabu.co.ke"   # sender "Zahabu", verified in Brevo (domain zahabu.co.ke authenticated and branded there)
+BREVO_LIST_ID = "3"                         # the "Zahabu Stories" list in Brevo → Contacts → Lists
 
 # Secrets (set with `npx wrangler secret put <NAME> -c wrangler.photos.toml`, never committed):
 #   TURNSTILE_SECRET - secret key of the Turnstile widget for zahabu.co.ke
 #   IP_SALT          - any long random string; salts the hashed IPs used for rate limiting
 #   BREVO_API_KEY    - Brevo → SMTP & API → API keys (set it in the dashboard, not with `!` inside Claude Code)
-#   BREVO_WEBHOOK_KEY - any long random string; also the last part of the webhook URL given to Brevo
