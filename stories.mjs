@@ -171,7 +171,8 @@ export function createStories({json, escapeHtml:esc, verifyTurnstile, hashIp, sa
     return Object.fromEntries(results.map(row => [row.id, row]));
   }
   const mediaUrl = (base, id, size) => `${base}/stories/media/${id}-${size}.jpg`;
-  const mixUrl = (base, id) => `${base}/stories/mixes/${id}.mp3`;
+  // ?v=2: a fresh address after the 2026-11-27 Range fix, so no browser reuses the broken replies it may have cached.
+  const mixUrl = (base, id) => `${base}/stories/mixes/${id}.mp3?v=2`;
   // Uploaded mixes used in these blocks (only finished uploads), keyed by id.
   async function mixInfo(env, blocks) {
     const ids = [...new Set(blocks.filter(b => b.t === 'mix').map(b => b.id))];
@@ -680,27 +681,33 @@ ${items}
   // ---------- Mixes: streaming ----------
 
   // Plays in the browser with seeking (HTTP Range requests). Only finished uploads; ids are unguessable.
+  // The Range header is parsed here and R2 is asked for exact bytes, so Content-Range never depends on what R2
+  // reports back (passing the raw header to R2 gave "bytes NaN-NaN/…" in production, which browsers refuse to play).
+  function parseRange(header, size) {
+    const m = /^bytes=(\d*)-(\d*)$/.exec(String(header || '').trim());
+    if (!m || (m[1] === '' && m[2] === '')) return null;              // absent, malformed or multi-range: send everything
+    let start, end;
+    if (m[1] === '') { const suffix = Math.min(Number(m[2]), size); start = size - suffix; end = size - 1; }
+    else { start = Number(m[1]); end = m[2] === '' ? size - 1 : Math.min(Number(m[2]), size - 1); }
+    if (!(start >= 0) || start >= size || end < start) return {invalid:true};
+    return {start, end, length:end - start + 1};
+  }
+
   async function streamMix(request, env, id) {
     if (!env.MIXES) return new Response('Not found', {status:404});
-    const row = await env.DB.prepare("SELECT id FROM mixes WHERE id = ? AND status = 'ready'").bind(id).first();
+    const row = await env.DB.prepare("SELECT id, size_bytes FROM mixes WHERE id = ? AND status = 'ready'").bind(id).first();
     if (!row) return new Response('Not found', {status:404});
     const key = `mixes/${id}.mp3`;
     const headers = {'Content-Type':'audio/mpeg', 'Accept-Ranges':'bytes', 'Cache-Control':'public, max-age=86400', 'Content-Disposition':'inline', 'X-Content-Type-Options':'nosniff'};
-    if (request.method === 'HEAD') {
-      const head = await env.MIXES.head(key);
-      if (!head) return new Response(null, {status:404});
-      return new Response(null, {headers:{...headers, 'Content-Length':String(head.size)}});
-    }
-    const range = request.headers.get('range');
-    const object = await env.MIXES.get(key, range ? {range:request.headers} : {});
+    let size = row.size_bytes;
+    if (!size) { const head = await env.MIXES.head(key); if (!head) return new Response('Not found', {status:404}); size = head.size; }
+    if (request.method === 'HEAD') return new Response(null, {headers:{...headers, 'Content-Length':String(size)}});
+    const range = parseRange(request.headers.get('range'), size);
+    if (range?.invalid) return new Response(null, {status:416, headers:{...headers, 'Content-Range':`bytes */${size}`}});
+    const object = await env.MIXES.get(key, range ? {range:{offset:range.start, length:range.length}} : {});
     if (!object) return new Response('Not found', {status:404});
-    if (range && object.range) {
-      const size = object.size;
-      const start = 'suffix' in object.range ? size - object.range.suffix : object.range.offset;
-      const length = 'suffix' in object.range ? object.range.suffix : (object.range.length ?? size - start);
-      return new Response(object.body, {status:206, headers:{...headers, 'Content-Range':`bytes ${start}-${start + length - 1}/${size}`, 'Content-Length':String(length)}});
-    }
-    return new Response(object.body, {headers:{...headers, 'Content-Length':String(object.size)}});
+    if (range) return new Response(object.body, {status:206, headers:{...headers, 'Content-Range':`bytes ${range.start}-${range.end}/${size}`, 'Content-Length':String(range.length)}});
+    return new Response(object.body, {headers:{...headers, 'Content-Length':String(size)}});
   }
 
   // ---------- Mixes: staff library and uploads ----------

@@ -18,17 +18,16 @@ export function localR2(dir) {
   const r2 = {
     async put(key, value) { const bytes = await toBytes(value); await mkdir(dirname(path(key)), {recursive:true}); await writeFile(path(key), bytes); return {key, size:bytes.length}; },
     async head(key) { try { return {key, size:(await readFile(path(key))).length}; } catch { return null; } },
-    // Supports {range: Headers} like R2 (bytes=a-b, bytes=a-, bytes=-n).
+    // Supports R2-style ranges: {range:{offset, length}} or {range:{suffix}}.
     async get(key, options = {}) {
       let bytes;
       try { bytes = await readFile(path(key)); } catch { return null; }
-      const header = options.range?.get?.('range');
-      const m = header && header.match(/^bytes=(\d*)-(\d*)$/);
-      if (!m) return {body:new Blob([bytes]).stream(), size:bytes.length};
-      let start, end;
-      if (m[1] === '') { start = Math.max(0, bytes.length - Number(m[2])); end = bytes.length - 1; }
-      else { start = Number(m[1]); end = m[2] === '' ? bytes.length - 1 : Math.min(Number(m[2]), bytes.length - 1); }
-      return {body:new Blob([bytes.subarray(start, end + 1)]).stream(), size:bytes.length, range:{offset:start, length:end - start + 1}};
+      const r = options.range;
+      if (!r) return {body:new Blob([bytes]).stream(), size:bytes.length};
+      if (r instanceof Headers || typeof r.get === 'function') throw new Error('Pass R2 a {offset, length} range, not request headers');
+      const start = 'suffix' in r ? Math.max(0, bytes.length - r.suffix) : r.offset || 0;
+      const end = 'suffix' in r ? bytes.length : Math.min(bytes.length, start + (r.length ?? bytes.length - start));
+      return {body:new Blob([bytes.subarray(start, end)]).stream(), size:bytes.length, range:r};
     },
     async delete(keys) { for (const key of [keys].flat()) await rm(path(key), {force:true}); },
     async createMultipartUpload(key) { const uploadId = crypto.randomUUID(); uploads.set(uploadId, {key, parts:new Map()}); return {key, uploadId}; },

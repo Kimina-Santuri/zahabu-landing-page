@@ -701,6 +701,16 @@ assert.deepEqual(new Uint8Array(await ranged.arrayBuffer()), mixBytes.subarray(1
 const tail = await site(`/stories/mixes/${createdMix.id}.mp3`, {headers:{range:'bytes=-50'}});
 assert.equal(tail.headers.get('content-range'), `bytes ${mixBytes.length - 50}-${mixBytes.length - 1}/${mixBytes.length}`);
 assert.equal((await site(`/stories/mixes/${createdMix.id}.mp3`, {method:'HEAD'})).headers.get('content-length'), String(mixBytes.length));
+const openEnded = await site(`/stories/mixes/${createdMix.id}.mp3`, {headers:{range:'bytes=0-'}});
+assert.equal(openEnded.status, 206, 'browsers start playback with bytes=0-');
+assert.equal(openEnded.headers.get('content-range'), `bytes 0-${mixBytes.length - 1}/${mixBytes.length}`);
+assert.equal(openEnded.headers.get('content-length'), String(mixBytes.length));
+const seekTo = await site(`/stories/mixes/${createdMix.id}.mp3`, {headers:{range:`bytes=${mixBytes.length - 10}-`}});
+assert.equal(seekTo.headers.get('content-range'), `bytes ${mixBytes.length - 10}-${mixBytes.length - 1}/${mixBytes.length}`);
+assert.deepEqual(new Uint8Array(await seekTo.arrayBuffer()), mixBytes.subarray(mixBytes.length - 10));
+assert.equal((await site(`/stories/mixes/${createdMix.id}.mp3`, {headers:{range:`bytes=${mixBytes.length}-`}})).status, 416, 'past the end');
+assert.equal((await site(`/stories/mixes/${createdMix.id}.mp3`, {headers:{range:'bytes=0-1,5-9'}})).status, 200, 'multi-range: whole file');
+for (const res of [ranged, tail, openEnded, seekTo]) assert.ok(!/NaN/.test(res.headers.get('content-range')), 'never NaN');
 let mixLib = await (await staff('/admin/api/mixes')).json();
 assert.equal(mixLib.usedBytes, mixBytes.length);
 assert.equal(mixLib.mixes[0].usedIn, 0);
@@ -709,7 +719,7 @@ const mixBlock = {t:'mix', id:createdMix.id, title:'Sundowner <session>', artist
 assert.deepEqual(storiesForTestsModule.cleanBody([mixBlock, {t:'mix', id:'nope'}]).blocks, [mixBlock], 'bad mix ids dropped');
 story = (await (await staff(`/admin/api/stories/${story.id}`, {method:'PUT', json:{...story, body:[...body, mixBlock]}})).json()).story;
 const mixPage = await (await site('/stories/sundowner-season-and-more')).text();
-assert.ok(mixPage.includes(`<audio class="mix-audio" controls preload="none" controlsList="nodownload" src="/stories/mixes/${createdMix.id}.mp3">`), 'player, nothing preloaded, no download button');
+assert.ok(mixPage.includes(`<audio class="mix-audio" controls preload="none" controlsList="nodownload" src="/stories/mixes/${createdMix.id}.mp3?v=2">`), 'player, nothing preloaded, no download button');
 assert.ok(mixPage.includes('Sundowner &lt;session&gt;') && mixPage.includes('DJ Test · Live, 4 Dec') && mixPage.includes('/ 1:02:05'), 'details and duration');
 assert.ok(!mixPage.includes('<session>'));
 brevoCalls.length = 0;
